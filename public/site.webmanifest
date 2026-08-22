@@ -1,0 +1,14 @@
+{
+  "name": "Middleman",
+  "short_name": "Middleman",
+  "description": "Pay safe. Receive first. Escrow-protected transfers between buyers and sellers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101d49",
+  "theme_color": "#14275e",
+  "icons": [
+    { "src": "/icons/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

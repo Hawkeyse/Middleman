@@ -1,0 +1,21 @@
+:root { font-family: 'DM Sans', sans-serif; color: #18233f; background: #f5f7fb; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; --ink:#17213d; --muted:#78839d; --line:#e8ecf4; --blue:#2754ea; --blue-dark:#14275e; --orange:#ff835d; --green:#20aa78; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { font: inherit; cursor: pointer; }
+
+/* shared "activity" icon badge — used by Dashboard (activity feed, wallet) and Team (transactions) */
+.activity-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;flex:0 0 auto}
+.activity-icon.green{color:var(--green);background:#e5f8f0}
+.activity-icon.blue{color:var(--blue);background:#ebf0ff}
+.activity-icon.orange{color:var(--orange);background:#fff0eb}
+
+.animate-in{animation:fadeUp .7s cubic-bezier(.16,1,.3,1) both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.animate-in{animation:none}}
+
+/* ---- native route-change crossfade (View Transitions API) ---- */
+::view-transition-old(root){animation:vtOut .22s cubic-bezier(.4,0,1,1) both}
+::view-transition-new(root){animation:vtIn .32s cubic-bezier(0,0,.2,1) both}
+@keyframes vtOut{to{opacity:0;transform:scale(.985)}}
+@keyframes vtIn{from{opacity:0;transform:scale(1.015)}}
+@media(prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation:none}}
