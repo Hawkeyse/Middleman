@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Camera, Car, Clock, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, ShieldAlert, Upload } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Camera, Car, Clock, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, ShieldAlert, Sun, Upload } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { countries } from '../state/countries.js'
 import './Verify.css'
@@ -38,6 +38,7 @@ function Verify() {
   const [selfie, setSelfie] = useState(null)
   const [cameraError, setCameraError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [countdown, setCountdown] = useState(null)
 
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -81,6 +82,21 @@ function Verify() {
     }
     streamRef.current?.getTracks().forEach((t) => t.stop())
   }
+
+  // Gives the applicant a moment to get their face centered and well-lit
+  // before we actually take the photo, instead of capturing the instant
+  // they click — matches how most real ID-verification flows behave.
+  const startCapture = () => {
+    if (cameraError || !videoRef.current?.videoWidth) { captureSelfie(); return }
+    setCountdown(3)
+  }
+
+  useEffect(() => {
+    if (countdown === null) return
+    if (countdown === 0) { captureSelfie(); setCountdown(null); return }
+    const t = window.setTimeout(() => setCountdown((c) => c - 1), 800)
+    return () => window.clearTimeout(t)
+  }, [countdown])
 
   const submit = () => {
     setSubmitting(true)
@@ -194,17 +210,29 @@ function Verify() {
           <div className="verify-step">
             <span className="verify-eyebrow">STEP 4 OF 4</span>
             <h2>Take a live selfie</h2>
-            <p>This confirms the person applying is the person on the document. Look straight at the camera.</p>
+            <p>This confirms the person applying is the person on the document.</p>
+            {!selfie && !cameraError && (
+              <div className="selfie-tip"><Sun size={14} /> Find good lighting and fit your whole face in the oval — no hats, sunglasses or shadows.</div>
+            )}
             <div className="selfie-frame">
               {selfie
                 ? <img src={selfie === 'sample' ? docImage : selfie} alt="Captured selfie" />
                 : cameraError
                   ? <div className="selfie-fallback"><Camera size={26} /><span>Camera unavailable in this browser/session.</span></div>
-                  : <video ref={videoRef} autoPlay playsInline muted></video>}
+                  : <>
+                      <video ref={videoRef} autoPlay playsInline muted></video>
+                      <div className={countdown !== null ? 'selfie-guide scanning' : 'selfie-guide'}>
+                        <div className="selfie-oval"></div>
+                        {countdown !== null && <div className="selfie-scan-line"></div>}
+                      </div>
+                      {countdown !== null && countdown > 0 && <div className="selfie-countdown">{countdown}</div>}
+                    </>}
             </div>
             {selfie
               ? <button className="verify-next ghost" onClick={() => setSelfie(null)}><RefreshCw size={15} /> Retake</button>
-              : <button className="verify-next" onClick={captureSelfie}><Camera size={16} /> {cameraError ? 'Simulate capture' : 'Capture'}</button>}
+              : countdown !== null
+                ? <button className="verify-next ghost" onClick={() => setCountdown(null)}>Cancel</button>
+                : <button className="verify-next" onClick={startCapture}><Camera size={16} /> {cameraError ? 'Simulate capture' : 'Start scan'}</button>}
             {selfie && <button className="verify-next" disabled={submitting} onClick={submit}>{submitting ? <><Loader2 size={16} className="spin" /> Submitting…</> : 'Submit for review'}</button>}
           </div>
         )}

@@ -32,9 +32,20 @@
 .age-hint{color:#0e7a52;font-size:11.5px;font-weight:600}
 .age-error{color:#a34335;font-size:11.5px;font-weight:600}
 
-.selfie-frame{display:grid;place-items:center;height:280px;margin-bottom:18px;border-radius:14px;overflow:hidden;background:#0d1c4f;color:#9db4ff}
+.selfie-frame{position:relative;display:grid;place-items:center;height:280px;margin-bottom:18px;border-radius:14px;overflow:hidden;background:#0d1c4f;color:#9db4ff}
 .selfie-frame video,.selfie-frame img{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 .selfie-fallback{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px;text-align:center;font-size:12px}
+
+/* ---- selfie capture guidance ---- */
+.selfie-tip{display:flex;align-items:center;gap:7px;margin-bottom:14px;padding:10px 12px;border-radius:9px;background:#edf2ff;color:#4c5c8a;font-size:11.5px;line-height:1.5}
+.selfie-tip svg{flex:0 0 auto;color:var(--blue)}
+.selfie-guide{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.selfie-oval{width:62%;height:82%;border:3px solid #ffffff59;border-radius:50%;transition:border-color .3s,box-shadow .3s}
+.selfie-guide.scanning .selfie-oval{border-color:#5f9dff;box-shadow:0 0 0 4000px #0d1c4f6b,0 0 22px 2px #4c8bff80}
+.selfie-scan-line{position:absolute;left:19%;right:19%;height:2px;background:linear-gradient(90deg,transparent,#7fb0ff,transparent);animation:selfieScan 1.5s ease-in-out infinite}
+@keyframes selfieScan{0%{top:12%}50%{top:85%}100%{top:12%}}
+.selfie-countdown{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:700 54px 'Space Grotesk',sans-serif;text-shadow:0 4px 18px #000a;animation:countdownPop .8s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes countdownPop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
 
 .verify-next{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;padding:13px;border:0;border-radius:9px;color:#fff;background:linear-gradient(120deg,#2754ea,#5f86ff);font-size:13.5px;font-weight:700;text-decoration:none;box-shadow:0 10px 22px #2754ea3d;transition:transform .2s,box-shadow .2s,opacity .2s}
 .verify-next:hover{transform:translateY(-2px);box-shadow:0 14px 26px #2754ea52}
