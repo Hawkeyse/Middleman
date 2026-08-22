@@ -39,6 +39,9 @@ function Verify() {
   const [cameraError, setCameraError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [countdown, setCountdown] = useState(null)
+  const [checking, setChecking] = useState(false)
+  const [checkResult, setCheckResult] = useState(null)
+  const [checkError, setCheckError] = useState('')
 
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -61,11 +64,25 @@ function Verify() {
     }
   }, [step, selfie])
 
+  // Phone camera photos can be several MB — downscale before it goes into
+  // localStorage or over the wire to the automated check below.
   const handleDocUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => setDocImage(reader.result)
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const maxDim = 1600
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        setDocImage(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = reader.result
+    }
     reader.readAsDataURL(file)
   }
 
@@ -97,6 +114,34 @@ function Verify() {
     const t = window.setTimeout(() => setCountdown((c) => c - 1), 800)
     return () => window.clearTimeout(t)
   }, [countdown])
+
+  // Automated pre-filter (see api/verify/check.js) — catches an obviously
+  // missing face or an invalid/expired/troll document before it reaches the
+  // team's review queue. If the check itself fails (no API key, network,
+  // OpenAI down) we don't block on it — the team still reviews manually.
+  useEffect(() => {
+    if (!selfie || selfie === 'sample' || !docImage) return
+    let cancelled = false
+    setChecking(true)
+    setCheckError('')
+    setCheckResult(null)
+    fetch('/api/verify/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ docImage, docType, selfieImage: selfie }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null)
+        if (!res.ok) throw new Error(data?.error || 'Automated check failed')
+        if (!cancelled) setCheckResult(data)
+      })
+      .catch((err) => { if (!cancelled) setCheckError(err.message) })
+      .finally(() => { if (!cancelled) setChecking(false) })
+    return () => { cancelled = true }
+  }, [selfie])
+
+  const retakeSelfie = () => { setSelfie(null); setCheckResult(null); setCheckError('') }
+  const backToDocument = () => { setDocImage(null); setSelfie(null); setCheckResult(null); setCheckError(''); setStep(3) }
 
   const submit = () => {
     setSubmitting(true)
@@ -228,12 +273,27 @@ function Verify() {
                       {countdown !== null && countdown > 0 && <div className="selfie-countdown">{countdown}</div>}
                     </>}
             </div>
+            {selfie && checking && <div className="check-status checking"><Loader2 size={14} className="spin" /> Checking your photos…</div>}
+            {selfie && !checking && checkResult && !checkResult.overallOk && (
+              <div className="check-status issue"><ShieldAlert size={14} /> {checkResult.summary}</div>
+            )}
+            {selfie && !checking && checkError && (
+              <div className="check-status note">Automated check unavailable — your submission will go straight to manual review.</div>
+            )}
+
             {selfie
-              ? <button className="verify-next ghost" onClick={() => setSelfie(null)}><RefreshCw size={15} /> Retake</button>
+              ? <button className="verify-next ghost" onClick={retakeSelfie}><RefreshCw size={15} /> Retake selfie</button>
               : countdown !== null
                 ? <button className="verify-next ghost" onClick={() => setCountdown(null)}>Cancel</button>
                 : <button className="verify-next" onClick={startCapture}><Camera size={16} /> {cameraError ? 'Simulate capture' : 'Start scan'}</button>}
-            {selfie && <button className="verify-next" disabled={submitting} onClick={submit}>{submitting ? <><Loader2 size={16} className="spin" /> Submitting…</> : 'Submit for review'}</button>}
+
+            {selfie && checkResult && !checkResult.overallOk && (checkResult.retryTarget === 'document' || checkResult.retryTarget === 'both') && (
+              <button className="verify-next ghost" onClick={backToDocument}><Upload size={15} /> Re-upload document</button>
+            )}
+
+            {selfie && (checkError || !checkResult || checkResult.overallOk) && (
+              <button className="verify-next" disabled={submitting || checking} onClick={submit}>{submitting ? <><Loader2 size={16} className="spin" /> Submitting…</> : 'Submit for review'}</button>
+            )}
           </div>
         )}
 

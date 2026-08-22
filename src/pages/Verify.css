@@ -47,6 +47,13 @@
 .selfie-countdown{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:700 54px 'Space Grotesk',sans-serif;text-shadow:0 4px 18px #000a;animation:countdownPop .8s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes countdownPop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
 
+/* ---- automated pre-filter status ---- */
+.check-status{display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;padding:11px 13px;border-radius:9px;font-size:12px;line-height:1.6}
+.check-status svg{flex:0 0 auto;margin-top:1px}
+.check-status.checking{color:#4c5c8a;background:#edf2ff}
+.check-status.issue{color:#a34335;background:#fdeceb}
+.check-status.note{color:#8a5a12;background:#fff6e9}
+
 .verify-next{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;padding:13px;border:0;border-radius:9px;color:#fff;background:linear-gradient(120deg,#2754ea,#5f86ff);font-size:13.5px;font-weight:700;text-decoration:none;box-shadow:0 10px 22px #2754ea3d;transition:transform .2s,box-shadow .2s,opacity .2s}
 .verify-next:hover{transform:translateY(-2px);box-shadow:0 14px 26px #2754ea52}
 .verify-next:disabled{opacity:.45;box-shadow:none;transform:none;cursor:not-allowed}
