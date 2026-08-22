@@ -48,6 +48,13 @@ function Verify() {
   const age = calcAge(dob)
   const ageError = !dob || age === null ? '' : age < MIN_AGE ? `You need to be at least ${MIN_AGE} to use Middleman.` : age > 120 ? 'Check that date of birth.' : ''
 
+  // Ghana Card only makes sense for a Ghanaian applicant — don't offer it to
+  // everyone else, and drop it if they'd already picked it then changed country.
+  const availableDocTypes = docTypes.filter((d) => d.id !== 'ghana-card' || country === 'Ghana')
+  useEffect(() => {
+    if (docType === 'ghana-card' && country !== 'Ghana') setDocType(null)
+  }, [country, docType])
+
   useEffect(() => {
     if (step !== 4 || selfie) return
     let cancelled = false
@@ -224,7 +231,7 @@ function Verify() {
             <h2>Choose a document</h2>
             <p>Pick the ID you'll upload next.</p>
             <div className="doc-grid">
-              {docTypes.map((doc) => {
+              {availableDocTypes.map((doc) => {
                 const Icon = doc.icon
                 return (
                   <button key={doc.id} className={docType === doc.id ? 'doc-option selected' : 'doc-option'} onClick={() => setDocType(doc.id)}>
