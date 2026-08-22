@@ -27,7 +27,7 @@
 
 .verify-field{display:grid;gap:6px;margin-bottom:22px}
 .verify-field label{color:#586380;font-size:12px;font-weight:700}
-.verify-field input,.verify-field select{padding:12px 14px;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;font-size:13.5px}
+.verify-field input,.verify-field select{padding:12px 14px;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;font-size:16px}
 .verify-field input:focus,.verify-field select:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}
 .age-hint{color:#0e7a52;font-size:11.5px;font-weight:600}
 .age-error{color:#a34335;font-size:11.5px;font-weight:600}
