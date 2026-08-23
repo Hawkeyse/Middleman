@@ -69,3 +69,33 @@ export function releaseDeal(code, buyerEmail) {
   writeAll(deals)
   return deals[code]
 }
+
+export function listAllDeals() {
+  return Object.values(readAll()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
+
+// Only the buyer can open a dispute, and only while payment is actually
+// sitting in escrow — freezes the deal so it can't be released until the
+// team resolves it from /team.
+export function disputeDeal(code, buyerEmail, reason) {
+  const deals = readAll()
+  const deal = deals[code]
+  if (!deal || deal.status !== 'paid' || deal.buyerEmail !== buyerEmail) return null
+  deals[code] = { ...deal, status: 'disputed', disputeReason: reason || '', disputedAt: new Date().toISOString() }
+  writeAll(deals)
+  return deals[code]
+}
+
+// Team-only — bypasses the buyer-must-release rule since this is an
+// authorized manual decision made from /team, not the buyer's own action.
+// decision: 'release' (pay the seller anyway) | 'refund' (buyer was right —
+// refund happens manually outside the app for now, this just records it).
+export function resolveDispute(code, decision) {
+  const deals = readAll()
+  const deal = deals[code]
+  if (!deal || deal.status !== 'disputed') return null
+  const status = decision === 'release' ? 'released' : 'refunded'
+  deals[code] = { ...deal, status, disputeResolution: decision, resolvedAt: new Date().toISOString() }
+  writeAll(deals)
+  return deals[code]
+}

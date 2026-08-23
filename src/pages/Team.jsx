@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Clock, Headset, IdCard,
+  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Clock, Flag, Headset, IdCard,
   Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X,
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead } from '../state/chat.js'
 import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
 import { listAllTransactions } from '../state/transactions.js'
+import { listAllDeals, resolveDispute } from '../state/deals.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import ChatThread from '../components/ChatThread.jsx'
@@ -68,11 +69,16 @@ function Team() {
 
   const [transactions, setTransactions] = useState([])
 
+  const [deals, setDeals] = useState([])
+  const [disputeFilter, setDisputeFilter] = useState('open')
+  const [selectedDealCode, setSelectedDealCode] = useState(null)
+
   const refresh = () => {
     setRecords(listVerifications())
     setThreads(listThreads())
     setUsers(listUsers())
     setTransactions(listAllTransactions())
+    setDeals(listAllDeals())
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -82,6 +88,12 @@ function Team() {
   }, [unlocked])
 
   const totalFees = transactions.filter((t) => t.type === 'deposit' && t.fee != null).reduce((sum, t) => sum + Number(t.fee), 0)
+
+  const disputedDeals = deals.filter((d) => d.disputeReason)
+  const openDisputeCount = disputedDeals.filter((d) => d.status === 'disputed').length
+  const visibleDisputes = disputeFilter === 'all' ? disputedDeals : disputedDeals.filter((d) => (disputeFilter === 'open' ? d.status === 'disputed' : d.status !== 'disputed'))
+  const selectedDeal = disputedDeals.find((d) => d.code === selectedDealCode) || null
+  const resolve = (decision) => { resolveDispute(selectedDealCode, decision); refresh() }
 
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null
@@ -116,6 +128,7 @@ function Team() {
         <div className="team-tabs">
           <button className={section === 'verifications' ? 'active' : ''} onClick={() => setSection('verifications')}><IdCard size={14} /> Verifications{records.filter((r) => r.status === 'pending').length > 0 && <i>{records.filter((r) => r.status === 'pending').length}</i>}</button>
           <button className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><UsersIcon size={14} /> Users</button>
+          <button className={section === 'disputes' ? 'active' : ''} onClick={() => setSection('disputes')}><Flag size={14} /> Disputes{openDisputeCount > 0 && <i>{openDisputeCount}</i>}</button>
           <button className={section === 'transactions' ? 'active' : ''} onClick={() => setSection('transactions')}><Receipt size={14} /> Transactions</button>
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
         </div>
@@ -221,6 +234,58 @@ function Team() {
                   <div className="team-warnings">
                     <span className="section-label">WARNING HISTORY</span>
                     {selectedUser.warnings.map((w, i) => <div className="team-warning-row" key={i}><TriangleAlert size={13} /><span>{w.reason}</span><small>{new Date(w.at).toLocaleDateString()}</small></div>)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {section === 'disputes' && (
+        <div className="team-split">
+          <div className="team-list">
+            <div className="team-filter-row">
+              {['open', 'resolved', 'all'].map((f) => <button key={f} className={disputeFilter === f ? 'active' : ''} onClick={() => setDisputeFilter(f)}>{f}</button>)}
+            </div>
+            {visibleDisputes.length === 0 && <div className="team-empty">Nothing here.</div>}
+            {visibleDisputes.map((d) => (
+              <button key={d.code} className={d.code === selectedDealCode ? 'team-row active' : 'team-row'} onClick={() => setSelectedDealCode(d.code)}>
+                <div><b>{d.itemName}</b><span>{d.code} · {d.buyerEmail}</span></div>
+                <span className={`team-badge ${d.status === 'disputed' ? 'pending' : d.status === 'released' ? 'verified' : 'declined'}`}>{d.status === 'disputed' ? 'open' : d.status}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="team-detail">
+            {!selectedDeal ? <div className="team-empty">Select a dispute to review it.</div> : (
+              <>
+                <div className="team-detail-head">
+                  <div><h2>{selectedDeal.itemName}</h2><span>{selectedDeal.code}</span></div>
+                  <span className={`team-badge large ${selectedDeal.status === 'disputed' ? 'pending' : selectedDeal.status === 'released' ? 'verified' : 'declined'}`}>{selectedDeal.status === 'disputed' ? 'open' : selectedDeal.status}</span>
+                </div>
+                <div className="team-detail-meta">
+                  <div><small>AMOUNT</small><b>₵ {money(selectedDeal.amount)}</b></div>
+                  <div><small>BUYER</small><b>{selectedDeal.buyerName || selectedDeal.buyerEmail}</b></div>
+                  <div><small>SELLER</small><b>{selectedDeal.sellerName || selectedDeal.sellerEmail}</b></div>
+                  <div><small>REPORTED</small><b>{selectedDeal.disputedAt ? new Date(selectedDeal.disputedAt).toLocaleString() : '—'}</b></div>
+                </div>
+                <div className="team-payout-info">
+                  <span className="section-label">BUYER'S REPORT</span>
+                  <p>{selectedDeal.disputeReason || '—'}</p>
+                </div>
+
+                {selectedDeal.status === 'disputed' ? (
+                  <div className="team-actions">
+                    <div>
+                      <button className="team-approve" onClick={() => resolve('release')}><Check size={15} /> Release to seller</button>
+                      <button className="team-decline" onClick={() => resolve('refund')}><X size={15} /> Refund buyer</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`team-decision ${selectedDeal.status === 'released' ? 'verified' : 'declined'}`}>
+                    {selectedDeal.status === 'released' ? <BadgeCheck size={16} /> : <ShieldAlert size={16} />}
+                    <span>{selectedDeal.status === 'released' ? 'Resolved — released to seller' : 'Resolved — refunded to buyer'}{selectedDeal.resolvedAt ? ` on ${new Date(selectedDeal.resolvedAt).toLocaleDateString()}` : ''}</span>
                   </div>
                 )}
               </>

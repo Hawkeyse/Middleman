@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Grid2X2, Image as ImageIcon,
+  ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Grid2X2, Image as ImageIcon,
   LayoutList, Link2, LockKeyhole, Plus, Send, ShieldAlert, ShieldCheck, Sparkles, Wallet, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
-import { createDeal, listDealsFor, releaseDeal } from '../state/deals.js'
+import { createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
 import SupportChat from '../components/SupportChat.jsx'
 import './Dashboard.css'
@@ -29,7 +29,7 @@ function useCountUp(target, duration = 1200) {
 }
 
 const money = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed' }
+const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded' }
 const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} /> }
 
 function Dashboard() {
@@ -53,6 +53,9 @@ function Dashboard() {
   const [dealForm, setDealForm] = useState({ itemName: '', amount: '', buyerContact: '', image: null })
   const [createdDeal, setCreatedDeal] = useState(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [disputeTarget, setDisputeTarget] = useState(null)
+  const [disputeReason, setDisputeReason] = useState('')
 
   // Recomputed fresh on every render straight from localStorage (see
   // src/state/deals.js and transactions.js) so any mutation — a new deal, a
@@ -68,9 +71,11 @@ function Dashboard() {
   const warningsCount = accountStatus?.warnings?.length || 0
   const trustScoreTarget = Math.max(0, Math.min(100, 80 + completedCount * 3 - warningsCount * 10))
 
-  // The one deal most worth surfacing on the overview: something needing the
-  // signed-in user's action first, otherwise the most recent thing they're part of.
+  // The one deal most worth surfacing on the overview: a live dispute first
+  // (both sides want eyes on that), then something needing the signed-in
+  // user's action, otherwise the most recent thing they're part of.
   const activeDeal =
+    deals.find((d) => d.status === 'disputed') ||
     deals.find((d) => d.status === 'paid' && d.buyerEmail === user.email) ||
     deals.find((d) => d.status === 'paid' && d.sellerEmail === user.email) ||
     deals.find((d) => d.status === 'pending-acceptance') ||
@@ -102,6 +107,15 @@ function Dashboard() {
     logTransaction({ type: 'release', dealCode: updated.code, itemName: updated.itemName, amount: updated.sellerPayout ?? updated.amount, buyerEmail: updated.buyerEmail, sellerEmail: updated.sellerEmail, counterparty: updated.sellerName })
     setReleased(true)
     window.setTimeout(closeModal, 2200)
+  }
+
+  const openDispute = (deal) => { setDisputeTarget(deal); setDisputeReason(''); setDisputeOpen(true) }
+  const closeDispute = () => { setDisputeOpen(false); setDisputeTarget(null); setDisputeReason('') }
+  const submitDispute = (e) => {
+    e.preventDefault()
+    if (!disputeTarget || !disputeReason.trim()) return
+    disputeDeal(disputeTarget.code, user.email, disputeReason.trim())
+    closeDispute()
   }
 
   // Deal-affecting actions require identity verification first.
@@ -165,7 +179,11 @@ function Dashboard() {
   }
 
   // deal-progress step index: 1 created, 2 payment protected, 3 confirm delivery, 4 released
-  const stepIndex = !activeDeal ? 0 : activeDeal.status === 'pending-acceptance' ? 2 : activeDeal.status === 'paid' ? 3 : 4
+  // (disputed/refunded both freeze at 3 — neither ever reached a real release)
+  const stepIndex = !activeDeal ? 0
+    : activeDeal.status === 'pending-acceptance' ? 2
+    : activeDeal.status === 'released' ? 4
+    : 3
 
   return (
     <div className="app-shell">
@@ -218,12 +236,15 @@ function Dashboard() {
                 {deals.map((d) => {
                   const buyer = d.buyerEmail === user.email
                   const counterpart = buyer ? (d.sellerName || 'Seller') : (d.buyerName || d.buyerEmail || 'Awaiting buyer')
+                  const icon = d.status === 'released' ? <Check size={16} /> : d.status === 'disputed' ? <Flag size={16} /> : d.status === 'refunded' ? <ArrowUpRight size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />
+                  const iconColor = d.status === 'released' ? 'green' : d.status === 'disputed' ? 'orange' : d.status === 'refunded' ? 'orange' : d.status === 'paid' ? 'blue' : 'orange'
                   return (
                     <div className="wallet-row" key={d.code}>
-                      <span className={`activity-icon ${d.status === 'released' ? 'green' : d.status === 'paid' ? 'blue' : 'orange'}`}>{d.status === 'released' ? <Check size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />}</span>
+                      <span className={`activity-icon ${iconColor}`}>{icon}</span>
                       <p><b>{d.itemName}</b><small>{counterpart} <span>•</span> {d.code} <span>•</span> {new Date(d.createdAt).toLocaleDateString()}</small></p>
                       <span className={`deal-status-badge ${d.status}`}>{statusLabel[d.status]}</span>
                       {buyer && d.status === 'paid' && <button className="deal-row-action" onClick={() => requireVerified(() => openRelease(d))}>Confirm</button>}
+                      {buyer && d.status === 'paid' && <button className="deal-row-action ghost" onClick={() => openDispute(d)}>Report</button>}
                     </div>
                   )
                 })}
@@ -239,7 +260,7 @@ function Dashboard() {
 
         {activeDeal && (
         <section className="current-deal animate-in" id="current-deal" style={{ animationDelay: '190ms' }}>
-          <div className="section-heading"><div><div className="section-label">{activeDeal.status === 'released' ? 'COMPLETED DEAL' : 'LIVE DEAL'}</div><h2>{activeDeal.itemName}</h2><p>{statusLabel[activeDeal.status]}</p></div><button className="more-button"><span></span><span></span><span></span></button></div>
+          <div className="section-heading"><div><div className="section-label">{activeDeal.status === 'released' ? 'COMPLETED DEAL' : activeDeal.status === 'disputed' ? 'DISPUTED DEAL' : activeDeal.status === 'refunded' ? 'REFUNDED DEAL' : 'LIVE DEAL'}</div><h2>{activeDeal.itemName}</h2><p>{statusLabel[activeDeal.status]}</p></div><button className="more-button"><span></span><span></span><span></span></button></div>
           <div className="deal-body">
             <div className="deal-person buyer"><div className="person-avatar">{(iAmBuyer ? (activeDeal.sellerName || 'S') : (activeDeal.buyerName || activeDeal.buyerEmail || 'B'))[0].toUpperCase()}</div><div><small>{iAmBuyer ? 'YOU ARE BUYING FROM' : 'YOU ARE SELLING TO'}</small><b>{iAmBuyer ? (activeDeal.sellerName || 'Seller') : (activeDeal.buyerName || activeDeal.buyerEmail || 'Awaiting buyer')}</b>{iAmBuyer && <span>Seller <ShieldCheck size={13} /></span>}</div></div>
             <div className="deal-amount"><small>AMOUNT HELD</small><strong>₵ {money(dealAmount)}</strong><button onClick={copyId}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> {activeDeal.code}</>}</button></div>
@@ -251,7 +272,18 @@ function Dashboard() {
             <div className={`step ${stepIndex > 3 ? 'complete' : stepIndex === 3 ? 'current' : ''}`}><span>{stepIndex > 3 ? <Check size={14} /> : 3}</span><b>Confirm delivery</b><small>{stepIndex === 3 ? 'Up next' : ''}</small></div>
             <div className={`step ${stepIndex > 3 ? 'complete' : ''}`}><span>{stepIndex > 3 ? <Check size={14} /> : 4}</span><b>Funds released</b><small>{activeDeal.releasedAt ? new Date(activeDeal.releasedAt).toLocaleDateString() : ''}</small></div>
           </div>
-          {iAmBuyer && activeDeal.status === 'paid' && <button className="confirm-button" onClick={() => requireVerified(() => openRelease(activeDeal))}>Confirm delivery <Check size={17} /></button>}
+          {activeDeal.status === 'disputed' && (
+            <div className="deal-dispute-note"><Flag size={14} /> This deal is under review by our team{activeDeal.disputeReason ? `: "${activeDeal.disputeReason}"` : '.'} Funds stay locked until it's resolved.</div>
+          )}
+          {activeDeal.status === 'refunded' && (
+            <div className="deal-dispute-note resolved"><ArrowUpRight size={14} /> This dispute was resolved in the buyer's favor — refunded outside the app by the team.</div>
+          )}
+          {iAmBuyer && activeDeal.status === 'paid' && (
+            <div className="deal-action-row">
+              <button className="confirm-button" onClick={() => requireVerified(() => openRelease(activeDeal))}>Confirm delivery <Check size={17} /></button>
+              <button className="dispute-button" onClick={() => openDispute(activeDeal)}><Flag size={15} /> Report a problem</button>
+            </div>
+          )}
           {!iAmBuyer && activeDeal.status === 'paid' && <div className="deal-waiting-note"><LockKeyhole size={14} /> Waiting for {activeDeal.buyerName || 'your buyer'} to confirm delivery.</div>}
           {activeDeal.status === 'pending-acceptance' && <button className="confirm-button" onClick={copyActiveDealLink}>{linkCopied ? <><Check size={17} /> Link copied</> : <><Link2 size={17} /> Copy invite link</>}</button>}
         </section>
@@ -313,6 +345,21 @@ function Dashboard() {
           <button className="cancel-button" onClick={() => setPayoutGateOpen(false)}>Not now</button>
           <button className="confirm-button" onClick={() => navigate('/profile')}>Add payout method <Wallet size={17} /></button>
         </div>
+      </div></div>}
+
+      {disputeOpen && <div className="modal-backdrop" onClick={closeDispute}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={closeDispute}><X size={18} /></button>
+        <div className="modal-icon gate"><Flag size={22} /></div>
+        <div className="section-label">REPORT A PROBLEM</div>
+        <h2>What went wrong?</h2>
+        <p>This locks the deal — no one can release these funds until our team looks into it and resolves it.</p>
+        <form onSubmit={submitDispute}>
+          <textarea className="dispute-textarea" required rows={4} value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)} placeholder="e.g. item never arrived, doesn't match what was listed, seller stopped responding…" />
+          <div className="modal-actions">
+            <button type="button" className="cancel-button" onClick={closeDispute}>Cancel</button>
+            <button className="confirm-button" type="submit"><Flag size={16} /> Report &amp; freeze funds</button>
+          </div>
+        </form>
       </div></div>}
 
       {newDealOpen && <div className="modal-backdrop" onClick={closeNewDeal}><div className="modal" onClick={(event) => event.stopPropagation()}>
