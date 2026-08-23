@@ -157,6 +157,7 @@ function Signup() {
                 <button className="auth-submit" type="submit" disabled={submitting}>
                   {submitting ? <><Loader2 size={15} className="spin" /> Creating account…</> : 'Create account'}
                 </button>
+                <p className="auth-terms-note">By creating an account, you agree to Middleman's <Link to="/terms">Terms of Service</Link>.</p>
               </form>
 
               <div className="auth-note"><ShieldCheck size={15} /> You'll verify your identity before your first deal — it only takes a minute and keeps everyone on Middleman safe.</div>

@@ -36,6 +36,9 @@
 .auth-switch a{color:var(--blue);font-weight:700;text-decoration:none}
 .auth-switch a:hover{text-decoration:underline}
 .auth-error{margin-bottom:16px;padding:10px 12px;border-radius:8px;background:#fff0ee;color:#c23b2e;font-size:12px;font-weight:600}
+.auth-terms-note{margin:12px 0 0;color:#9ca7ba;font-size:11px;text-align:center;line-height:1.6}
+.auth-terms-note a{color:#7885a8;font-weight:600;text-decoration:underline}
+.auth-terms-note a:hover{color:var(--blue)}
 .auth-forgot-link{justify-self:end;margin-top:6px;color:var(--blue);font-size:12px;font-weight:600;text-decoration:none}
 .auth-forgot-link:hover{text-decoration:underline}
 .auth-code-icon{display:grid;place-items:center;width:44px;height:44px;margin-bottom:16px;border-radius:12px;color:var(--blue);background:#edf2ff}

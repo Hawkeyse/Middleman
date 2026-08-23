@@ -73,6 +73,7 @@
 .welcome-footer{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:26px clamp(20px,5vw,64px) 34px;border-top:1px solid #ffffff1a;color:#8494c9;font-size:12px}
 .welcome-footer .ghost-link{color:#c3cef5}
 .welcome-footer .ghost-link:hover{color:#fff}
+.welcome-footer-links{display:flex;align-items:center;gap:18px}
 
 @media(max-width:900px){
   .hero-viewport{min-height:0}

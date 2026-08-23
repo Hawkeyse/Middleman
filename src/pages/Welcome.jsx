@@ -79,7 +79,10 @@ function Welcome() {
 
       <footer className="welcome-footer">
         <span>© 2026 Middleman. Built for buyers and sellers everywhere.</span>
-        <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>
+        <div className="welcome-footer-links">
+          <Link className="ghost-link" to="/terms">Terms of Service</Link>
+          <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>
+        </div>
       </footer>
     </div>
   )
