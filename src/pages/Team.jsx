@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Clock, Flag, Headset, IdCard,
-  Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X,
+  Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X, ZoomIn,
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread } from '../state/chat.js'
@@ -63,6 +63,7 @@ function Team() {
   const [filter, setFilter] = useState('pending')
   const [selectedId, setSelectedId] = useState(null)
   const [reasonDraft, setReasonDraft] = useState('')
+  const [lightbox, setLightbox] = useState(null)
 
   const [threads, setThreads] = useState([])
   const [selectedEmail, setSelectedEmail] = useState(null)
@@ -179,8 +180,8 @@ function Team() {
                   <div><small>SUBMITTED</small><b>{selected.submittedAt ? new Date(selected.submittedAt).toLocaleString() : '—'}</b></div>
                 </div>
                 <div className="team-images">
-                  <div><small>DOCUMENT PHOTO</small>{selected.docImage ? <img src={selected.docImage} alt="Document" /> : <div className="team-image-empty">No image</div>}</div>
-                  <div><small>LIVE SELFIE</small>{selected.selfieImage ? <img src={selected.selfieImage} alt="Selfie" /> : <div className="team-image-empty">No image</div>}</div>
+                  <div><small>DOCUMENT PHOTO</small>{selected.docImage ? <button className="team-image-zoom" onClick={() => setLightbox(selected.docImage)}><img src={selected.docImage} alt="Document" /><span><ZoomIn size={14} /> Click to enlarge</span></button> : <div className="team-image-empty">No image</div>}</div>
+                  <div><small>LIVE SELFIE</small>{selected.selfieImage ? <button className="team-image-zoom" onClick={() => setLightbox(selected.selfieImage)}><img src={selected.selfieImage} alt="Selfie" /><span><ZoomIn size={14} /> Click to enlarge</span></button> : <div className="team-image-empty">No image</div>}</div>
                 </div>
 
                 {selected.status === 'pending' ? (
@@ -372,6 +373,13 @@ function Team() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {lightbox && (
+        <div className="lightbox-backdrop" onClick={() => setLightbox(null)}>
+          <button className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Close"><X size={20} /></button>
+          <img src={lightbox} alt="Full size" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
