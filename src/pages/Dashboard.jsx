@@ -8,6 +8,7 @@ import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
+import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
 import SupportChat from '../components/SupportChat.jsx'
 import './Dashboard.css'
 
@@ -28,7 +29,6 @@ function useCountUp(target, duration = 1200) {
   return value
 }
 
-const money = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded' }
 const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} /> }
 
@@ -50,7 +50,7 @@ function Dashboard() {
   const [supportOpen, setSupportOpen] = useState(false)
   const [newDealOpen, setNewDealOpen] = useState(false)
   const [newDealStep, setNewDealStep] = useState('form')
-  const [dealForm, setDealForm] = useState({ itemName: '', amount: '', buyerContact: '', image: null })
+  const [dealForm, setDealForm] = useState({ itemName: '', amount: '', currency: 'GHS', buyerContact: '', image: null })
   const [createdDeal, setCreatedDeal] = useState(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [disputeOpen, setDisputeOpen] = useState(false)
@@ -63,9 +63,16 @@ function Dashboard() {
   const deals = listDealsFor(user.email)
   const transactions = listTransactionsFor(user.email)
 
-  const balance = transactions
-    .filter((t) => t.type === 'release' && t.sellerEmail === user.email)
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+  // Balances are tracked per currency — summing dollars and cedis into one
+  // number would be meaningless. CURRENCIES has a fixed set, so calling
+  // useCountUp a fixed number of times below stays rules-of-hooks-safe.
+  const balances = { GHS: 0, NGN: 0, USD: 0 }
+  for (const t of transactions) {
+    if (t.type === 'release' && t.sellerEmail === user.email) {
+      const cur = t.currency || 'GHS'
+      balances[cur] = (balances[cur] || 0) + Number(t.amount)
+    }
+  }
 
   const completedCount = deals.filter((d) => d.status === 'released').length
   const warningsCount = accountStatus?.warnings?.length || 0
@@ -83,7 +90,14 @@ function Dashboard() {
 
   const iAmBuyer = activeDeal?.buyerEmail === user.email
   const dealAmount = useCountUp(Number(activeDeal?.amount || 0), 1300)
-  const balanceCount = useCountUp(balance, 1300)
+  const balanceGHS = useCountUp(balances.GHS, 1300)
+  const balanceNGN = useCountUp(balances.NGN, 1300)
+  const balanceUSD = useCountUp(balances.USD, 1300)
+  const balanceDisplay = Object.entries(CURRENCIES)
+    .map(([cur]) => [cur, { GHS: balanceGHS, NGN: balanceNGN, USD: balanceUSD }[cur]])
+    .filter(([cur]) => balances[cur] > 0)
+    .map(([cur, val]) => `${symbolFor(cur)} ${money(val)}`)
+    .join(' · ') || '₵ 0.00'
   const trustScore = useCountUp(trustScoreTarget, 1400)
 
   useEffect(() => {
@@ -132,7 +146,7 @@ function Dashboard() {
     else setPayoutGateOpen(true)
   })
 
-  const closeNewDeal = () => { setNewDealOpen(false); setNewDealStep('form'); setDealForm({ itemName: '', amount: '', buyerContact: '', image: null }); setCreatedDeal(null) }
+  const closeNewDeal = () => { setNewDealOpen(false); setNewDealStep('form'); setDealForm({ itemName: '', amount: '', currency: 'GHS', buyerContact: '', image: null }); setCreatedDeal(null) }
 
   const handleDealImage = (e) => {
     const file = e.target.files?.[0]
@@ -207,7 +221,7 @@ function Dashboard() {
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>Available balance</small><b>₵ {money(balanceCount)}</b></span><ArrowUpRight size={17} /></div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>Available balance</small><b>{balanceDisplay}</b></span><ArrowUpRight size={17} /></div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>
@@ -220,7 +234,7 @@ function Dashboard() {
                   <div className="wallet-row" key={t.id}>
                     <span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{activityIcon[t.type]}</span>
                     <p><b>{t.type === 'deposit' ? 'Paid into escrow' : 'Funds released'}</b><small>{t.itemName} <span>•</span> {t.counterparty} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p>
-                    <strong className={t.type === 'deposit' ? 'negative' : 'positive'}>{t.type === 'deposit' ? '−' : '+'}₵ {money(t.amount)}</strong>
+                    <strong className={t.type === 'deposit' ? 'negative' : 'positive'}>{t.type === 'deposit' ? '−' : '+'}{symbolFor(t.currency)} {money(t.amount)}</strong>
                   </div>
                 ))}
               </div>
@@ -254,7 +268,7 @@ function Dashboard() {
         ) : (
         <>
         <section className="hero-grid animate-in" style={{ animationDelay: '110ms' }}>
-          <div className="hero-card"><div className="hero-copy"><span className="status-chip"><span className="pulse-dot"></span> {heroChip}</span><h2>One step closer<br /><em>to a safe delivery.</em></h2><p>{activeDeal ? 'Your payment is locked and protected. Confirm when your package arrives, and we will release it instantly.' : 'Create a deal and we\'ll hand you an invite link — your buyer pays into escrow, and the money stays locked until you both agree it\'s done.'}</p><button className="hero-cta" onClick={heroAction}>{activeDeal ? 'Review current deal' : 'Create your first deal'} <ArrowUpRight size={17} /></button></div><div className="orb orb-one"></div><div className="orb orb-two"></div>{activeDeal && <div className="hero-stamp"><LockKeyhole size={17} /><span>₵ {money(activeDeal.amount)}<br /><small>held securely</small></span></div>}</div>
+          <div className="hero-card"><div className="hero-copy"><span className="status-chip"><span className="pulse-dot"></span> {heroChip}</span><h2>One step closer<br /><em>to a safe delivery.</em></h2><p>{activeDeal ? 'Your payment is locked and protected. Confirm when your package arrives, and we will release it instantly.' : 'Create a deal and we\'ll hand you an invite link — your buyer pays into escrow, and the money stays locked until you both agree it\'s done.'}</p><button className="hero-cta" onClick={heroAction}>{activeDeal ? 'Review current deal' : 'Create your first deal'} <ArrowUpRight size={17} /></button></div><div className="orb orb-one"></div><div className="orb orb-two"></div>{activeDeal && <div className="hero-stamp"><LockKeyhole size={17} /><span>{symbolFor(activeDeal.currency)} {money(activeDeal.amount)}<br /><small>held securely</small></span></div>}</div>
           <div className="stats-card"><div className="section-label">YOUR TRUST SCORE <span>?</span></div><div className="score-row"><strong>{Math.round(trustScore)}</strong><span>/ 100</span><div className="score-ring"><ShieldCheck size={24} /></div></div><p>{trustScoreTarget >= 90 ? 'Excellent. You are building a trusted track record.' : trustScoreTarget >= 70 ? 'Good standing — keep completing deals cleanly.' : 'Complete deals without issues to raise this.'}</p><div className="mini-bars"><i style={{ height: '44%' }}></i><i style={{ height: '63%' }}></i><i style={{ height: '56%' }}></i><i style={{ height: '80%' }}></i><i className="hot" style={{ height: '96%' }}></i><i style={{ height: '72%' }}></i><i style={{ height: '86%' }}></i></div>{completedCount > 0 ? <small className="trend"><ArrowUpRight size={13} /> {completedCount} deal{completedCount === 1 ? '' : 's'} completed</small> : <small className="trend neutral">Complete a deal to start building trust.</small>}</div>
         </section>
 
@@ -263,7 +277,7 @@ function Dashboard() {
           <div className="section-heading"><div><div className="section-label">{activeDeal.status === 'released' ? 'COMPLETED DEAL' : activeDeal.status === 'disputed' ? 'DISPUTED DEAL' : activeDeal.status === 'refunded' ? 'REFUNDED DEAL' : 'LIVE DEAL'}</div><h2>{activeDeal.itemName}</h2><p>{statusLabel[activeDeal.status]}</p></div><button className="more-button"><span></span><span></span><span></span></button></div>
           <div className="deal-body">
             <div className="deal-person buyer"><div className="person-avatar">{(iAmBuyer ? (activeDeal.sellerName || 'S') : (activeDeal.buyerName || activeDeal.buyerEmail || 'B'))[0].toUpperCase()}</div><div><small>{iAmBuyer ? 'YOU ARE BUYING FROM' : 'YOU ARE SELLING TO'}</small><b>{iAmBuyer ? (activeDeal.sellerName || 'Seller') : (activeDeal.buyerName || activeDeal.buyerEmail || 'Awaiting buyer')}</b>{iAmBuyer && <span>Seller <ShieldCheck size={13} /></span>}</div></div>
-            <div className="deal-amount"><small>AMOUNT HELD</small><strong>₵ {money(dealAmount)}</strong><button onClick={copyId}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> {activeDeal.code}</>}</button></div>
+            <div className="deal-amount"><small>AMOUNT HELD</small><strong>{symbolFor(activeDeal.currency)} {money(dealAmount)}</strong><button onClick={copyId}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> {activeDeal.code}</>}</button></div>
             <div className="deal-person seller"><div className="person-avatar orange">{(iAmBuyer ? user.name : (activeDeal.buyerName || activeDeal.buyerEmail || 'A'))?.[0]?.toUpperCase() || 'A'}</div><div><small>{iAmBuyer ? 'ITEM SHIPS TO' : 'PAYMENT RELEASES TO'}</small><b>{iAmBuyer ? (user.name || 'You') : 'You'}</b></div></div>
           </div>
           <div className="deal-progress"><div className="deal-progress-fill" style={{ animationName: 'none', width: `${(stepIndex / 4) * 100}%` }}></div>
@@ -294,7 +308,7 @@ function Dashboard() {
             <div className="section-heading"><div><div className="section-label">RECENT ACTIVITY</div><h2>Everything in one place</h2></div>{transactions.length > 0 && <button className="text-button" onClick={() => setActiveTab('Wallet')}>View all <ArrowUpRight size={15} /></button>}</div>
             <div className="activity-list">
               {transactions.length === 0 ? <div className="wallet-empty">Nothing yet — activity shows up here once a deal moves.</div> : transactions.slice(0, 3).map((t) => (
-                <div key={t.id}><span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{activityIcon[t.type]}</span><p><b>{t.type === 'deposit' ? 'Payment protected' : 'Funds released'}</b><small>{t.itemName} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p><strong>₵ {money(t.amount)}</strong></div>
+                <div key={t.id}><span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{activityIcon[t.type]}</span><p><b>{t.type === 'deposit' ? 'Payment protected' : 'Funds released'}</b><small>{t.itemName} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p><strong>{symbolFor(t.currency)} {money(t.amount)}</strong></div>
               ))}
             </div>
           </div>
@@ -308,14 +322,14 @@ function Dashboard() {
           <div className="confetti">{Array.from({ length: 20 }).map((_, i) => <i key={i} style={{ '--x': `${Math.round(((i * 53) % 220) - 110)}px`, '--r': `${Math.round(((i * 97) % 500) - 250)}deg`, '--d': `${(0.9 + (i % 5) * 0.14).toFixed(2)}s`, left: `${8 + i * 4.3}%`, background: ['#2754ea', '#ff835d', '#20aa78', '#ffd166'][i % 4] }}></i>)}</div>
           <div className="modal-icon success"><Check size={26} /></div>
           <div className="section-label">FUNDS RELEASED</div>
-          <h2>₵ {money(releaseTarget?.amount)} sent to {releaseTarget?.sellerName || 'the seller'}.</h2>
+          <h2>{symbolFor(releaseTarget?.currency)} {money(releaseTarget?.amount)} sent to {releaseTarget?.sellerName || 'the seller'}.</h2>
           <p>Nice one, deal complete. Your trust score just went up.</p>
         </> : <>
           <button className="modal-close" onClick={closeModal}><X size={18} /></button>
           <div className="modal-icon"><LockKeyhole size={22} /></div>
           <div className="section-label">DELIVERY CONFIRMATION</div>
           <h2>Has your package arrived safely?</h2>
-          <p>Confirming delivery releases <b>₵ {money(releaseTarget?.amount)}</b> to {releaseTarget?.sellerName || 'the seller'}. This action cannot be undone.</p>
+          <p>Confirming delivery releases <b>{symbolFor(releaseTarget?.currency)} {money(releaseTarget?.amount)}</b> to {releaseTarget?.sellerName || 'the seller'}. This action cannot be undone.</p>
           <div className="modal-actions"><button className="cancel-button" onClick={closeModal}>Not yet</button><button className="confirm-button" onClick={releaseFunds}>Yes, release funds <Check size={17} /></button></div>
         </>}
       </div></div>}
@@ -375,7 +389,10 @@ function Dashboard() {
               <input type="file" accept="image/*" onChange={handleDealImage} hidden />
             </label>
             <div className="deal-form-field"><label htmlFor="item-name">Item name</label><input id="item-name" required value={dealForm.itemName} onChange={(e) => setDealForm((f) => ({ ...f, itemName: e.target.value }))} placeholder="Wireless headphones" /></div>
-            <div className="deal-form-field"><label htmlFor="item-amount">Amount (₵)</label><input id="item-amount" required type="number" min="1" step="0.01" value={dealForm.amount} onChange={(e) => setDealForm((f) => ({ ...f, amount: e.target.value }))} placeholder="4250.00" /></div>
+            <div className="deal-form-row">
+              <div className="deal-form-field"><label htmlFor="item-currency">Currency</label><select id="item-currency" value={dealForm.currency} onChange={(e) => setDealForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
+              <div className="deal-form-field"><label htmlFor="item-amount">Amount</label><input id="item-amount" required type="number" min="1" step="0.01" value={dealForm.amount} onChange={(e) => setDealForm((f) => ({ ...f, amount: e.target.value }))} placeholder="4250.00" /></div>
+            </div>
             <div className="deal-form-field"><label htmlFor="buyer-contact">Buyer's email or phone (optional)</label><input id="buyer-contact" value={dealForm.buyerContact} onChange={(e) => setDealForm((f) => ({ ...f, buyerContact: e.target.value }))} placeholder="buyer@example.com" /></div>
             <button className="confirm-button deal-submit" type="submit">Create invite <Link2 size={16} /></button>
           </form>
@@ -385,7 +402,7 @@ function Dashboard() {
           <h2>Send this to your buyer</h2>
           <div className="deal-preview">
             {createdDeal.image && <img src={createdDeal.image} alt={createdDeal.itemName} />}
-            <div><b>{createdDeal.itemName}</b><span>₵ {money(createdDeal.amount)}</span></div>
+            <div><b>{createdDeal.itemName}</b><span>{symbolFor(createdDeal.currency)} {money(createdDeal.amount)}</span></div>
           </div>
           <div className="invite-link-row">
             <input readOnly value={inviteUrl} onFocus={(e) => e.target.select()} />

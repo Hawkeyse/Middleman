@@ -18,11 +18,11 @@ function writeAll(list) {
 
 // type: 'deposit' (buyer pays into escrow, amount includes the Middleman fee)
 //     | 'release' (escrow pays the seller their full listed amount)
-export function logTransaction({ type, dealCode, itemName, amount, fee, sellerPayout, buyerEmail, sellerEmail, counterparty }) {
+export function logTransaction({ type, dealCode, itemName, amount, currency, fee, sellerPayout, buyerEmail, sellerEmail, counterparty }) {
   const list = readAll()
   const tx = {
     id: `TX-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
-    type, dealCode, itemName, amount, fee: fee ?? null, sellerPayout: sellerPayout ?? null, buyerEmail, sellerEmail, counterparty,
+    type, dealCode, itemName, amount, currency: currency || 'GHS', fee: fee ?? null, sellerPayout: sellerPayout ?? null, buyerEmail, sellerEmail, counterparty,
     at: new Date().toISOString(),
   }
   list.unshift(tx)

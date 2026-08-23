@@ -5,9 +5,8 @@ import { useAppState } from '../state/AppState.jsx'
 import { getDeal, markDealPaid } from '../state/deals.js'
 import { logTransaction } from '../state/transactions.js'
 import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack.js'
+import { money, symbolFor } from '../utils/currencies.js'
 import './Invite.css'
-
-const money = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function Invite() {
   const { code } = useParams()
@@ -23,11 +22,11 @@ function Invite() {
     setError('')
     setPaying(true)
     try {
-      const reference = await payWithPaystack({ email: user.email, amount: deal.buyerTotal, dealCode: code })
+      const reference = await payWithPaystack({ email: user.email, amount: deal.buyerTotal, currency: deal.currency, dealCode: code })
       const verified = await verifyPaystackPayment(reference)
       if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
 
-      logTransaction({ type: 'deposit', dealCode: code, itemName: deal.itemName, amount: deal.buyerTotal, fee: deal.fee, sellerPayout: deal.sellerPayout, buyerEmail: user.email, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName })
+      logTransaction({ type: 'deposit', dealCode: code, itemName: deal.itemName, amount: deal.buyerTotal, currency: deal.currency, fee: deal.fee, sellerPayout: deal.sellerPayout, buyerEmail: user.email, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName })
       markDealPaid(code, user.email, user.name)
       navigate('/dashboard')
     } catch (err) {
@@ -57,22 +56,22 @@ function Invite() {
 
         {deal.image && <img className="invite-item-image" src={deal.image} alt={deal.itemName} />}
         <h2>{deal.itemName}</h2>
-        <div className="invite-amount">₵ {money(deal.buyerTotal ?? deal.amount)}</div>
+        <div className="invite-amount">{symbolFor(deal.currency)} {money(deal.buyerTotal ?? deal.amount)}</div>
 
         {deal.fee != null && (
           <div className="invite-fee-breakdown">
             <Receipt size={14} />
             <div>
-              <div><span>Item price</span><b>₵ {money(deal.amount)}</b></div>
-              <div><span>Middleman fee ({Math.round(deal.feeRate * 1000) / 10}%)</span><b>₵ {money(deal.fee)}</b></div>
-              <div className="total"><span>You pay</span><b>₵ {money(deal.buyerTotal)}</b></div>
+              <div><span>Item price</span><b>{symbolFor(deal.currency)} {money(deal.amount)}</b></div>
+              <div><span>Middleman fee ({Math.round(deal.feeRate * 1000) / 10}%)</span><b>{symbolFor(deal.currency)} {money(deal.fee)}</b></div>
+              <div className="total"><span>You pay</span><b>{symbolFor(deal.currency)} {money(deal.buyerTotal)}</b></div>
             </div>
           </div>
         )}
 
         <div className="invite-explainer">
           <ShieldCheck size={16} />
-          <p>Pay into Middleman, not {deal.sellerName || 'the seller'} directly. We hold your money until you confirm the item has arrived — then, and only then, it's released. The seller receives the full ₵ {money(deal.amount)} listed price.</p>
+          <p>Pay into Middleman, not {deal.sellerName || 'the seller'} directly. We hold your money until you confirm the item has arrived — then, and only then, it's released. The seller receives the full {symbolFor(deal.currency)} {money(deal.amount)} listed price.</p>
         </div>
 
         {error && <p className="invite-error"><ShieldAlert size={13} /> {error}</p>}

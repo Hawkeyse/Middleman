@@ -11,13 +11,13 @@ import { listAllTransactions } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
+import { money, symbolFor } from '../utils/currencies.js'
 import ChatThread from '../components/ChatThread.jsx'
 import './Team.css'
 
 const PASSCODE = 'middleman-team' // demo-only gate — real deployment needs proper admin auth
 const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card', passport: 'International Passport', license: "Driver's License" }
 const filters = ['pending', 'verified', 'declined', 'all']
-const money = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function TeamGate({ onUnlock }) {
   const [code, setCode] = useState('')
@@ -87,7 +87,15 @@ function Team() {
     return () => window.removeEventListener('mm-chat-updated', refresh)
   }, [unlocked])
 
-  const totalFees = transactions.filter((t) => t.type === 'deposit' && t.fee != null).reduce((sum, t) => sum + Number(t.fee), 0)
+  // Grouped by currency — a single summed number would mix dollars, cedis and naira.
+  const feesByCurrency = {}
+  for (const t of transactions) {
+    if (t.type === 'deposit' && t.fee != null) {
+      const cur = t.currency || 'GHS'
+      feesByCurrency[cur] = (feesByCurrency[cur] || 0) + Number(t.fee)
+    }
+  }
+  const totalFeesDisplay = Object.entries(feesByCurrency).map(([cur, val]) => `${symbolFor(cur)} ${money(val)}`).join(' · ') || '₵ 0.00'
 
   const disputedDeals = deals.filter((d) => d.disputeReason)
   const openDisputeCount = disputedDeals.filter((d) => d.status === 'disputed').length
@@ -265,7 +273,7 @@ function Team() {
                   <span className={`team-badge large ${selectedDeal.status === 'disputed' ? 'pending' : selectedDeal.status === 'released' ? 'verified' : 'declined'}`}>{selectedDeal.status === 'disputed' ? 'open' : selectedDeal.status}</span>
                 </div>
                 <div className="team-detail-meta">
-                  <div><small>AMOUNT</small><b>₵ {money(selectedDeal.amount)}</b></div>
+                  <div><small>AMOUNT</small><b>{symbolFor(selectedDeal.currency)} {money(selectedDeal.amount)}</b></div>
                   <div><small>BUYER</small><b>{selectedDeal.buyerName || selectedDeal.buyerEmail}</b></div>
                   <div><small>SELLER</small><b>{selectedDeal.sellerName || selectedDeal.sellerEmail}</b></div>
                   <div><small>REPORTED</small><b>{selectedDeal.disputedAt ? new Date(selectedDeal.disputedAt).toLocaleString() : '—'}</b></div>
@@ -297,7 +305,7 @@ function Team() {
       {section === 'transactions' && (
         <div className="team-tx-page">
           <div className="team-revenue-banner">
-            <div><span>TOTAL FEES COLLECTED</span><strong>₵ {money(totalFees)}</strong></div>
+            <div><span>TOTAL FEES COLLECTED</span><strong>{totalFeesDisplay}</strong></div>
             <div className="team-revenue-note">Settles into the Middleman Paystack balance automatically. Manually reconcile to <b>Telecel MoMo 233 504 919 423</b>.</div>
           </div>
           {transactions.length === 0 ? <div className="team-empty">No transactions yet.</div> : (
@@ -308,10 +316,10 @@ function Team() {
                   <div>
                     <b>{t.itemName}</b>
                     <span>{t.dealCode} · {t.buyerEmail} → {t.sellerEmail}</span>
-                    {t.type === 'deposit' && t.fee != null && <span className="team-tx-fee">Received ₵{money(t.amount)} · fee ₵{money(t.fee)} · seller gets ₵{money(t.sellerPayout)}</span>}
+                    {t.type === 'deposit' && t.fee != null && <span className="team-tx-fee">Received {symbolFor(t.currency)}{money(t.amount)} · fee {symbolFor(t.currency)}{money(t.fee)} · seller gets {symbolFor(t.currency)}{money(t.sellerPayout)}</span>}
                   </div>
                   <span className="team-tx-date">{new Date(t.at).toLocaleString()}</span>
-                  <strong>₵ {money(t.amount)}</strong>
+                  <strong>{symbolFor(t.currency)} {money(t.amount)}</strong>
                 </div>
               ))}
             </div>

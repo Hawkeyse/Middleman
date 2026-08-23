@@ -24,11 +24,11 @@ function loadPaystackScript() {
 // Initializes the transaction server-side (locks in the amount), then opens
 // Paystack's inline popup for the buyer to pay. Resolves with the reference
 // once Paystack reports success — callers must still verify it server-side.
-export async function payWithPaystack({ email, amount, dealCode }) {
+export async function payWithPaystack({ email, amount, currency, dealCode }) {
   const initRes = await fetch('/api/paystack/initialize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, amount, dealCode }),
+    body: JSON.stringify({ email, amount, currency, dealCode }),
   })
   const init = await parseJson(initRes)
   if (!initRes.ok) throw new Error(init.error || 'Could not start payment')
@@ -40,7 +40,7 @@ export async function payWithPaystack({ email, amount, dealCode }) {
       key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
       email,
       amount: Math.round(Number(amount) * 100),
-      currency: 'GHS',
+      currency: currency || 'GHS',
       ref: init.reference,
       access_code: init.access_code,
       callback: (response) => resolve(response.reference),

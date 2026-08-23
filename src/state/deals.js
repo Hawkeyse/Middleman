@@ -26,13 +26,13 @@ function genCode() {
 // NOTE: this is a localStorage stand-in for a real backend. It only works in the
 // browser that created the deal — a production version needs a server so the
 // buyer can open the invite from any device.
-export function createDeal({ itemName, amount, image, buyerContact, sellerName, sellerEmail }) {
+export function createDeal({ itemName, amount, currency, image, buyerContact, sellerName, sellerEmail }) {
   const deals = readAll()
   let code = genCode()
   while (deals[code]) code = genCode()
-  const { feeRate, fee, buyerTotal, sellerPayout } = calcFee(amount)
+  const { feeRate, fee, buyerTotal, sellerPayout } = calcFee(amount, currency)
   deals[code] = {
-    code, itemName, amount, image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail,
+    code, itemName, amount, currency: currency || 'GHS', image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail,
     feeRate, fee, buyerTotal, sellerPayout,
     createdAt: new Date().toISOString(), status: 'pending-acceptance',
   }
