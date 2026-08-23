@@ -67,6 +67,7 @@ function Dashboard() {
   // the wallet you fund and spend from when accepting invites.
   const [mode, setMode] = useState('seller')
   const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef(null)
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositForm, setDepositForm] = useState({ currency: 'GHS', amount: '' })
   const [depositing, setDepositing] = useState(false)
@@ -140,7 +141,13 @@ function Dashboard() {
 
   useEffect(() => {
     if (!notifOpen) return
-    const close = () => setNotifOpen(false)
+    // A plain "close on any click" listener fires on its own opening click —
+    // the effect attaches it while that same native click is still bubbling
+    // (past this component) up to window, so it immediately self-closes.
+    // Checking containment instead of just closing unconditionally fixes it:
+    // the bell button is inside notifRef, so its own click is correctly
+    // treated as "inside" and ignored.
+    const close = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false) }
     window.addEventListener('click', close)
     return () => window.removeEventListener('click', close)
   }, [notifOpen])
@@ -312,7 +319,7 @@ function Dashboard() {
       </aside>
 
       <main className="content">
-        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><div className="notif-wrap"><button className="icon-button" aria-label="Notifications" onClick={() => setNotifOpen((o) => !o)}><Bell size={19} /><i></i></button>{notifOpen && (
+        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><div className="notif-wrap" ref={notifRef}><button className="icon-button" aria-label="Notifications" onClick={() => setNotifOpen((o) => !o)}><Bell size={19} /><i></i></button>{notifOpen && (
           <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
             <div className="notif-panel-head"><b>Notifications</b><button onClick={() => setNotifOpen(false)} aria-label="Close"><X size={14} /></button></div>
             <div className="notif-panel-body">
