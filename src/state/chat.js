@@ -22,27 +22,59 @@ function writeAll(threads) {
 
 const readKey = (role) => (role === 'team' ? 'lastReadByTeam' : 'lastReadByCustomer')
 
+// status: 'waiting' (no agent has joined yet) | 'active' (an agent joined) |
+// 'closed' (team ended the ticket — a new customer message reopens it).
+// Threads created before this existed have no status on disk; infer one so
+// old conversations don't all suddenly show "waiting for an agent".
+function normalize(thread) {
+  if (!thread) return thread
+  if (thread.status) return thread
+  const status = thread.messages.some((m) => m.from === 'team') ? 'active' : 'waiting'
+  return { ...thread, status }
+}
+
 // Same localStorage-as-backend-stand-in caveat as deals.js/verifications.js —
 // a real build needs a server (and ideally realtime) so team replies actually
 // reach the customer on a different device.
 export function sendMessage(email, { from, text, name }) {
   const all = readAll()
-  if (!all[email]) all[email] = { email, name, messages: [], lastReadByCustomer: null, lastReadByTeam: null }
+  if (!all[email]) all[email] = { email, name, messages: [], status: 'waiting', lastReadByCustomer: null, lastReadByTeam: null }
   if (name) all[email].name = name
+  // A customer messaging a closed ticket reopens it and puts it back in the queue.
+  if (from === 'customer' && normalize(all[email]).status === 'closed') all[email].status = 'waiting'
   all[email].messages.push({ from, text, at: new Date().toISOString() })
-  // Sending counts as having read your own thread up to now.
   all[email][readKey(from)] = new Date().toISOString()
+  writeAll(all)
+  return normalize(all[email])
+}
+
+// A team member claims an unattended thread.
+export function joinThread(email, agentName) {
+  const all = readAll()
+  if (!all[email]) return null
+  all[email].status = 'active'
+  all[email].messages.push({ from: 'system', text: `${agentName || 'A Middleman agent'} has joined this chat.`, at: new Date().toISOString() })
+  writeAll(all)
+  return all[email]
+}
+
+// Team ends the ticket — customer can still message again, which reopens it.
+export function closeThread(email) {
+  const all = readAll()
+  if (!all[email]) return null
+  all[email].status = 'closed'
+  all[email].messages.push({ from: 'system', text: "This ticket has been closed. If you need anything else, message us again and we'll be right with you.", at: new Date().toISOString() })
   writeAll(all)
   return all[email]
 }
 
 export function getThread(email) {
   if (!email) return null
-  return readAll()[email] || null
+  return normalize(readAll()[email])
 }
 
 export function listThreads() {
-  return Object.values(readAll()).sort((a, b) => {
+  return Object.values(readAll()).map(normalize).sort((a, b) => {
     const aLast = a.messages[a.messages.length - 1]?.at || ''
     const bLast = b.messages[b.messages.length - 1]?.at || ''
     return bLast.localeCompare(aLast)

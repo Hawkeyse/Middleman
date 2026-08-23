@@ -24,7 +24,12 @@ function loadPaystackScript() {
 // Initializes the transaction server-side (locks in the amount), then opens
 // Paystack's inline popup for the buyer to pay. Resolves with the reference
 // once Paystack reports success — callers must still verify it server-side.
-export async function payWithPaystack({ email, amount, currency, dealCode }) {
+// onReference fires as soon as Paystack hands back a reference — before the
+// popup even opens — so the caller can persist it. If the buyer closes the
+// tab or the popup mid-payment, the charge can still have gone through on
+// Paystack's side with no local record of it; having the reference saved
+// lets a later "check my payment" pass recover from that.
+export async function payWithPaystack({ email, amount, currency, dealCode, onReference }) {
   const initRes = await fetch('/api/paystack/initialize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,6 +37,7 @@ export async function payWithPaystack({ email, amount, currency, dealCode }) {
   })
   const init = await parseJson(initRes)
   if (!initRes.ok) throw new Error(init.error || 'Could not start payment')
+  onReference?.(init.reference)
 
   await loadPaystackScript()
 

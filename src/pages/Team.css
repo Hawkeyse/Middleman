@@ -8,10 +8,10 @@
 .team-gate-icon{display:grid;place-items:center;width:52px;height:52px;margin:0 auto 16px;border-radius:14px;color:var(--blue);background:#edf2ff}
 .team-gate-card h2{margin:0 0 8px;color:var(--ink);font:700 21px 'Space Grotesk',sans-serif}
 .team-gate-card p{margin:0 0 22px;color:var(--muted);font-size:12.5px;line-height:1.6}
-.team-gate-card form{display:flex;gap:8px}
-.team-gate-card input{flex:1;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:16px}
+.team-gate-card form{display:grid;gap:10px}
+.team-gate-card input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:16px}
 .team-gate-card input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}
-.team-gate-card form button{padding:11px 16px;border:0;border-radius:9px;color:#fff;background:var(--blue);font-size:13px;font-weight:700}
+.team-gate-card form button{padding:12px 16px;border:0;border-radius:9px;color:#fff;background:var(--blue);font-size:13px;font-weight:700}
 .team-gate-back{display:inline-block;margin-top:18px;color:#9ca7ba;font-size:12px;text-decoration:none}
 .team-gate-back:hover{color:var(--blue)}
 
@@ -72,6 +72,8 @@
 .team-chat-detail{display:flex;flex-direction:column;padding:0}
 .team-chat-detail .team-detail-head{padding:20px 24px 16px;margin-bottom:0;border-bottom:1px solid var(--line)}
 .team-chat-detail .chat-thread{flex:1;min-height:0}
+.chat-close-button{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border:1px solid #f3c7c0;border-radius:8px;color:#a34335;background:#fff;font-size:11.5px;font-weight:700}
+.chat-close-button:hover{background:#fdeceb}
 .team-unread{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:20px;color:#fff;background:var(--orange);font-size:10px;font-weight:700;font-style:normal}
 
 /* ---- users: warn/ban ---- */
@@ -105,4 +107,35 @@
 .team-payout-info p{margin:6px 0 0;color:var(--ink);font-size:12.5px}
 .team-payout-info p.muted{color:#9ca7ba;font-style:italic}
 
-@media(max-width:820px){.team-split{grid-template-columns:1fr}.team-list{display:none}}
+.team-detail-back{display:none;align-items:center;gap:6px;margin-bottom:16px;padding:0;border:0;background:transparent;color:#586380;font-size:12.5px;font-weight:600}
+
+@media(max-width:820px){
+  .team-page{height:auto;min-height:100vh}
+  .team-nav{flex-wrap:wrap;gap:10px 14px;padding:12px 16px}
+  .team-back-link{order:1}
+  .team-brand{order:2;margin-left:auto}
+  .team-tabs{order:3;flex-basis:100%;width:100%;margin-left:0;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .team-tabs button{flex:0 0 auto;white-space:nowrap}
+
+  .team-split{grid-template-columns:1fr;min-height:60vh}
+  .team-split .team-detail{display:none}
+  .team-split.has-selection .team-list{display:none}
+  .team-split.has-selection .team-detail{display:block}
+  .team-detail{padding:18px 16px}
+  .team-detail-back{display:inline-flex}
+  .team-detail-back.chat-back{display:inline-flex;margin:0;padding:6px;color:#586380}
+  .team-chat-detail .team-detail-head{align-items:center;padding:14px 16px}
+  .team-chat-detail .team-detail-head>div:nth-child(2){flex:1;min-width:0}
+  .team-chat-detail .team-detail-head h2{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .team-detail-meta{grid-template-columns:1fr 1fr;gap:12px}
+  .team-images{grid-template-columns:1fr}
+  .team-images img,.team-image-empty{height:auto;aspect-ratio:4/3}
+
+  .team-tx-page{padding:16px}
+  .team-revenue-banner{flex-direction:column;align-items:flex-start}
+  .team-tx-row{flex-wrap:wrap}
+  .team-tx-row>div{flex-basis:100%;order:1}
+  .team-tx-date{order:2}
+  .team-tx-row strong{order:3;margin-left:auto}
+}

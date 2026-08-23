@@ -5,7 +5,7 @@ import {
   Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X,
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
-import { listThreads, sendMessage, getUnreadCount, markRead } from '../state/chat.js'
+import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread } from '../state/chat.js'
 import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
 import { listAllTransactions } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
@@ -20,6 +20,7 @@ const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card
 const filters = ['pending', 'verified', 'declined', 'all']
 
 function TeamGate({ onUnlock }) {
+  const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
@@ -27,6 +28,7 @@ function TeamGate({ onUnlock }) {
     e.preventDefault()
     if (code === PASSCODE) {
       sessionStorage.setItem('mm_team_unlocked', 'true')
+      sessionStorage.setItem('mm_team_agent_name', name.trim() || 'Middleman Team')
       onUnlock()
     } else {
       setError('Wrong passcode.')
@@ -38,10 +40,11 @@ function TeamGate({ onUnlock }) {
       <div className="team-gate-card">
         <div className="team-gate-icon"><Lock size={22} /></div>
         <h2>Middleman Team</h2>
-        <p>Staff only. Enter the team passcode to review verifications, users and support chats.</p>
+        <p>Staff only. Enter your name and the team passcode to review verifications, users and support chats.</p>
         {error && <div className="team-error">{error}</div>}
         <form onSubmit={submit}>
-          <input type="password" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setError('') }} placeholder="Team passcode" />
+          <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+          <input type="password" value={code} onChange={(e) => { setCode(e.target.value); setError('') }} placeholder="Team passcode" />
           <button type="submit">Unlock</button>
         </form>
         <Link className="team-gate-back" to="/">Back to Middleman</Link>
@@ -52,6 +55,7 @@ function TeamGate({ onUnlock }) {
 
 function Team() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('mm_team_unlocked') === 'true')
+  const agentName = sessionStorage.getItem('mm_team_agent_name') || 'Middleman Team'
   const [section, setSection] = useState('verifications')
   const unreadTotal = useChatNotify({ role: 'team', title: 'Middleman Support', active: unlocked })
 
@@ -121,6 +125,8 @@ function Team() {
   }
 
   const openThread = (email) => { setSelectedEmail(email); markRead(email, 'team'); refresh() }
+  const joinChat = (email) => { joinThread(email, agentName); refresh() }
+  const closeChat = (email) => { closeThread(email); refresh() }
 
   const warn = (email) => { warnUser(email, actionDraft || 'No reason given.'); setActionDraft(''); refresh() }
   const ban = (email) => { banUser(email, actionDraft || 'Violated Middleman terms.'); setActionDraft(''); refresh() }
@@ -143,7 +149,7 @@ function Team() {
       </header>
 
       {section === 'verifications' && (
-        <div className="team-split">
+        <div className={`team-split ${selected ? 'has-selection' : ''}`}>
           <div className="team-list">
             <div className="team-filter-row">
               {filters.map((f) => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f}</button>)}
@@ -160,6 +166,7 @@ function Team() {
           <div className="team-detail">
             {!selected ? <div className="team-empty">Select a request to review it.</div> : (
               <>
+                <button className="team-detail-back" onClick={() => setSelectedId(null)}><ArrowLeft size={14} /> Back to list</button>
                 <div className="team-detail-head">
                   <div><h2>{selected.name || 'Unnamed applicant'}</h2><span>{selected.email}</span></div>
                   <span className={`team-badge large ${selected.status}`}>{selected.status}</span>
@@ -197,7 +204,7 @@ function Team() {
       )}
 
       {section === 'users' && (
-        <div className="team-split">
+        <div className={`team-split ${selectedUser ? 'has-selection' : ''}`}>
           <div className="team-list">
             {users.length === 0 && <div className="team-empty">No users yet.</div>}
             {users.map((u) => (
@@ -211,6 +218,7 @@ function Team() {
           <div className="team-detail">
             {!selectedUser ? <div className="team-empty">Select a user to warn or ban them.</div> : (
               <>
+                <button className="team-detail-back" onClick={() => setSelectedUserEmail(null)}><ArrowLeft size={14} /> Back to list</button>
                 <div className="team-detail-head">
                   <div><h2>{selectedUser.name || 'Unnamed user'}</h2><span>{selectedUser.email}{selectedUser.phone ? ` · ${selectedUser.phone}` : ''}</span></div>
                   <span className={`team-badge large ${selectedUser.status === 'active' ? 'verified' : selectedUser.status === 'warned' ? 'pending' : 'declined'}`}>{selectedUser.status}</span>
@@ -251,7 +259,7 @@ function Team() {
       )}
 
       {section === 'disputes' && (
-        <div className="team-split">
+        <div className={`team-split ${selectedDeal ? 'has-selection' : ''}`}>
           <div className="team-list">
             <div className="team-filter-row">
               {['open', 'resolved', 'all'].map((f) => <button key={f} className={disputeFilter === f ? 'active' : ''} onClick={() => setDisputeFilter(f)}>{f}</button>)}
@@ -268,6 +276,7 @@ function Team() {
           <div className="team-detail">
             {!selectedDeal ? <div className="team-empty">Select a dispute to review it.</div> : (
               <>
+                <button className="team-detail-back" onClick={() => setSelectedDealCode(null)}><ArrowLeft size={14} /> Back to list</button>
                 <div className="team-detail-head">
                   <div><h2>{selectedDeal.itemName}</h2><span>{selectedDeal.code}</span></div>
                   <span className={`team-badge large ${selectedDeal.status === 'disputed' ? 'pending' : selectedDeal.status === 'released' ? 'verified' : 'declined'}`}>{selectedDeal.status === 'disputed' ? 'open' : selectedDeal.status}</span>
@@ -328,7 +337,7 @@ function Team() {
       )}
 
       {section === 'support' && (
-        <div className="team-split">
+        <div className={`team-split ${selectedThread ? 'has-selection' : ''}`}>
           <div className="team-list">
             {threads.length === 0 && <div className="team-empty">No conversations yet.</div>}
             {threads.map((t) => {
@@ -336,7 +345,7 @@ function Team() {
               return (
                 <button key={t.email} className={t.email === selectedEmail ? 'team-row active' : 'team-row'} onClick={() => openThread(t.email)}>
                   <div><b>{t.name || t.email}</b><span>{t.messages[t.messages.length - 1]?.text.slice(0, 40) || ''}</span></div>
-                  {unread > 0 ? <i className="team-unread">{unread}</i> : <Clock size={13} />}
+                  {unread > 0 ? <i className="team-unread">{unread}</i> : t.status === 'waiting' ? <span className="team-badge pending">waiting</span> : t.status === 'closed' ? <Clock size={13} /> : <span className="team-badge verified">active</span>}
                 </button>
               )
             })}
@@ -344,8 +353,22 @@ function Team() {
           <div className="team-detail team-chat-detail">
             {!selectedThread ? <div className="team-empty">Select a conversation.</div> : (
               <>
-                <div className="team-detail-head"><div><h2>{selectedThread.name || selectedThread.email}</h2><span>{selectedThread.email}</span></div></div>
-                <ChatThread messages={selectedThread.messages} onSend={replyToCustomer} selfRole="team" placeholder="Reply as Middleman team…" />
+                <div className="team-detail-head">
+                  <button className="team-detail-back chat-back" onClick={() => setSelectedEmail(null)}><ArrowLeft size={14} /></button>
+                  <div><h2>{selectedThread.name || selectedThread.email}</h2><span>{selectedThread.email}</span></div>
+                  {selectedThread.status === 'active' && <button className="chat-close-button" onClick={() => closeChat(selectedThread.email)}><X size={13} /> <span>Close ticket</span></button>}
+                </div>
+                <ChatThread
+                  messages={selectedThread.messages}
+                  onSend={replyToCustomer}
+                  selfRole="team"
+                  placeholder="Reply as Middleman team…"
+                  footer={selectedThread.status === 'waiting'
+                    ? <div className="chat-join-row"><button className="chat-join-button" onClick={() => joinChat(selectedThread.email)}><Headset size={15} /> Join chat</button></div>
+                    : selectedThread.status === 'closed'
+                      ? <div className="chat-closed-row">Ticket closed — reply to reopen it.</div>
+                      : undefined}
+                />
               </>
             )}
           </div>

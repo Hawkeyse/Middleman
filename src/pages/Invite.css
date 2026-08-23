@@ -26,3 +26,7 @@
 .invite-error{display:flex;align-items:center;gap:6px;margin:0 0 14px;padding:10px 12px;border-radius:9px;background:#fdeceb;color:#a34335;font-size:12px;text-align:left}
 .invite-error svg{flex:0 0 auto}
 .invite-icon.missing{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 18px;border-radius:16px;color:#a34335;background:#fdeceb}
+.invite-refresh{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:10px;padding:11px;border:1px solid var(--line);border-radius:10px;color:#586380;background:#fff;font-size:12.5px;font-weight:600}
+.invite-refresh:hover{border-color:var(--blue);color:var(--blue)}
+.invite-refresh .spin{animation:inviteSpin 1s linear infinite}
+.invite-note-text{margin:0 0 14px;padding:10px 12px;border-radius:9px;background:#fff6e9;color:#8a5a12;font-size:12px;line-height:1.6;text-align:left}

@@ -5,6 +5,11 @@
 .chat-bubble.self{align-self:flex-end;border-radius:14px 14px 4px 14px;background:var(--blue);color:#fff}
 .chat-bubble p{margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .chat-bubble small{display:block;margin-top:4px;font-size:9.5px;opacity:.65}
+.chat-system{align-self:center;max-width:88%;padding:6px 13px;border-radius:20px;background:#eef1f8;color:#8994ab;font-size:11px;text-align:center;line-height:1.5}
+.chat-join-row{display:flex;justify-content:center;padding:14px;border-top:1px solid var(--line);background:#fff}
+.chat-join-button{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border:0;border-radius:20px;color:#fff;background:var(--blue);font-size:12.5px;font-weight:700;box-shadow:0 8px 18px #2754ea33}
+.chat-join-button:hover{transform:translateY(-1px)}
+.chat-closed-row{padding:12px;border-top:1px solid var(--line);background:#fbfcff;color:#9ca7ba;font-size:12px;text-align:center}
 .chat-input-row{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);background:#fff}
 .chat-input-row input{flex:1;min-width:0;padding:10px 13px;border:1px solid var(--line);border-radius:20px;color:var(--ink);background:#fbfcff;font-size:16px}
 .chat-input-row input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}

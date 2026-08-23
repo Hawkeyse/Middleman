@@ -7,7 +7,7 @@ function timeLabel(iso) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a message…' }) {
+function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a message…', footer }) {
   const [text, setText] = useState('')
   const endRef = useRef(null)
 
@@ -26,17 +26,23 @@ function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a message�
       <div className="chat-messages">
         {(!messages || messages.length === 0) && <div className="chat-empty">No messages yet.</div>}
         {messages?.map((m, i) => (
-          <div key={i} className={m.from === selfRole ? 'chat-bubble self' : 'chat-bubble'}>
-            <p>{m.text}</p>
-            <small>{timeLabel(m.at)}</small>
-          </div>
+          m.from === 'system'
+            ? <div key={i} className="chat-system">{m.text}</div>
+            : (
+              <div key={i} className={m.from === selfRole ? 'chat-bubble self' : 'chat-bubble'}>
+                <p>{m.text}</p>
+                <small>{timeLabel(m.at)}</small>
+              </div>
+            )
         ))}
         <div ref={endRef}></div>
       </div>
-      <form className="chat-input-row" onSubmit={submit}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} />
-        <button type="submit" aria-label="Send"><Send size={16} /></button>
-      </form>
+      {footer !== undefined ? footer : (
+        <form className="chat-input-row" onSubmit={submit}>
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} />
+          <button type="submit" aria-label="Send"><Send size={16} /></button>
+        </form>
+      )}
     </div>
   )
 }
