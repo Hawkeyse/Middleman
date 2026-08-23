@@ -40,11 +40,27 @@ export function upsertUser({ email, name, phone }) {
 
 // Where a seller's share of released escrow gets manually paid out to —
 // there's no live Paystack Transfer wired up yet (see api/paystack/), so the
-// team reconciles payouts by hand using what's on file here.
+// team reconciles payouts by hand using what's on file here. Goes through
+// upsertUser rather than requiring an existing record: a returning user on a
+// fresh browser/session may not have one yet (their record was only ever
+// created client-side, at signup, on whatever browser they signed up in),
+// and silently failing to save here is exactly what caused Dashboard's
+// payout gate to keep reappearing after a "successful" save.
 export function setPayoutMethod(email, method) {
+  if (!email) return null
   const all = readAll()
-  if (!all[email]) return null
-  all[email] = { ...all[email], payoutMethod: method }
+  const existing = all[email]
+  all[email] = {
+    email,
+    name: existing?.name || '',
+    phone: existing?.phone || '',
+    status: existing?.status || 'active',
+    warnings: existing?.warnings || [],
+    banReason: existing?.banReason || null,
+    bannedAt: existing?.bannedAt || null,
+    payoutMethod: method,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+  }
   writeAll(all)
   return all[email]
 }

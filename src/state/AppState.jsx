@@ -44,11 +44,12 @@ export function AppStateProvider({ children }) {
       setAuthChecked(true)
       if (snap) {
         const local = getUser(snap.email)
-        setUserState((prev) => ({
-          name: snap.displayName || local?.name || prev.name || '',
-          email: snap.email,
-          phone: local?.phone || prev.phone || '',
-        }))
+        const name = snap.displayName || local?.name || ''
+        // Keeps the users.js directory entry alive for a returning session on
+        // a fresh browser too, not just at signup — otherwise anything keyed
+        // off it (payout method, warn/ban) silently has nothing to attach to.
+        upsertUser({ email: snap.email, name, phone: local?.phone || '' })
+        setUserState((prev) => ({ name: name || prev.name || '', email: snap.email, phone: local?.phone || prev.phone || '' }))
       }
     })
     return unsub
