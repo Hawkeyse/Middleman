@@ -3,17 +3,23 @@ import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, LogOut, Pencil, ShieldAlert, Smartphone } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { setPayoutMethod } from '../state/users.js'
+import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import './Profile.css'
 
 const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card', passport: 'International Passport', license: "Driver's License" }
-const momoNetworks = ['MTN', 'Telecel', 'AirtelTigo']
-const emptyPayout = { type: 'momo', network: momoNetworks[0], accountNumber: '', accountName: '', bankName: '' }
 
 function Profile() {
   const navigate = useNavigate()
   const { user, setUser, verification, verificationMeta, logout, refreshVerification, accountStatus, refreshAccountStatus } = useAppState()
   const [form, setForm] = useState(user)
   const [saved, setSaved] = useState(false)
+
+  // Which payout options make sense depends on the seller's verified
+  // country — Ghana is mobile-money-first, Nigeria is bank/fintech-account-
+  // first with no equivalent telco mobile money, everyone else gets a
+  // generic free-text bank field. See src/state/payoutOptions.js.
+  const { momoNetworks, bankOptions } = payoutOptionsForCountry(verificationMeta?.country)
+  const emptyPayout = { type: momoNetworks ? 'momo' : 'bank', network: momoNetworks?.[0] || '', accountNumber: '', accountName: '', bankName: '' }
 
   const payoutMethod = accountStatus?.payoutMethod || null
   const [editingPayout, setEditingPayout] = useState(false)
@@ -132,12 +138,14 @@ function Profile() {
               )
             ) : (
               <form className="payout-form" onSubmit={savePayout}>
-                <div className="payout-type-toggle">
-                  <button type="button" className={payoutForm.type === 'momo' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'momo' }))}><Smartphone size={14} /> Mobile Money</button>
-                  <button type="button" className={payoutForm.type === 'bank' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'bank' }))}><Banknote size={14} /> Bank Account</button>
-                </div>
+                {momoNetworks && (
+                  <div className="payout-type-toggle">
+                    <button type="button" className={payoutForm.type === 'momo' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'momo' }))}><Smartphone size={14} /> Mobile Money</button>
+                    <button type="button" className={payoutForm.type === 'bank' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'bank' }))}><Banknote size={14} /> Bank Account</button>
+                  </div>
+                )}
 
-                {payoutForm.type === 'momo' ? (
+                {payoutForm.type === 'momo' && momoNetworks ? (
                   <>
                     <div className="profile-field">
                       <label htmlFor="p-network">Network</label>
@@ -149,7 +157,17 @@ function Profile() {
                   </>
                 ) : (
                   <>
-                    <div className="profile-field"><label htmlFor="p-bank">Bank name</label><input id="p-bank" required value={payoutForm.bankName} onChange={updatePayout('bankName')} placeholder="GCB Bank" /></div>
+                    <div className="profile-field">
+                      <label htmlFor="p-bank">Bank</label>
+                      {bankOptions ? (
+                        <select id="p-bank" required value={payoutForm.bankName} onChange={updatePayout('bankName')}>
+                          <option value="" disabled>Select your bank</option>
+                          {bankOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      ) : (
+                        <input id="p-bank" required value={payoutForm.bankName} onChange={updatePayout('bankName')} placeholder="Bank name" />
+                      )}
+                    </div>
                     <div className="profile-field"><label htmlFor="p-account-number">Account number</label><input id="p-account-number" required value={payoutForm.accountNumber} onChange={updatePayout('accountNumber')} /></div>
                   </>
                 )}
