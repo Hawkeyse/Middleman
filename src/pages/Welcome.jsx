@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, Globe, ShieldCheck, Sparkles, Star } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Globe, Lock, ShieldCheck, Sparkles, Star } from 'lucide-react'
 import './Welcome.css'
 
 const steps = [
@@ -81,6 +81,7 @@ function Welcome() {
         <span>© 2026 Middleman. Built for buyers and sellers everywhere.</span>
         <div className="welcome-footer-links">
           <Link className="ghost-link" to="/terms">Terms of Service</Link>
+          <Link className="ghost-link team-link" to="/team" title="Middleman Team" aria-label="Middleman Team"><Lock size={13} /></Link>
           <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>
         </div>
       </footer>

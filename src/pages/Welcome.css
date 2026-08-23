@@ -74,6 +74,8 @@
 .welcome-footer .ghost-link{color:#c3cef5}
 .welcome-footer .ghost-link:hover{color:#fff}
 .welcome-footer-links{display:flex;align-items:center;gap:18px}
+.team-link{display:inline-flex;align-items:center;padding:5px;border-radius:6px;color:#5a6aa0;opacity:.55;transition:opacity .2s,color .2s}
+.team-link:hover{opacity:1;color:#c3cef5}
 
 @media(max-width:900px){
   .hero-viewport{min-height:0}
