@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Clock, Flag, Headset, IdCard,
-  Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X, ZoomIn,
+  Lock, Receipt, ShieldAlert, TriangleAlert, Undo2, Users as UsersIcon, X, ZoomIn,
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
 import { listAllTransactions } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
+import { listRefundRequests, completeRefund } from '../state/wallet.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { money, symbolFor } from '../utils/currencies.js'
@@ -79,12 +80,15 @@ function Team() {
   const [disputeFilter, setDisputeFilter] = useState('open')
   const [selectedDealCode, setSelectedDealCode] = useState(null)
 
+  const [refunds, setRefunds] = useState([])
+
   const refresh = () => {
     setRecords(listVerifications())
     setThreads(listThreads())
     setUsers(listUsers())
     setTransactions(listAllTransactions())
     setDeals(listAllDeals())
+    setRefunds(listRefundRequests())
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -120,6 +124,9 @@ function Team() {
   const visibleDisputes = disputeFilter === 'all' ? disputedDeals : disputedDeals.filter((d) => (disputeFilter === 'open' ? d.status === 'disputed' : d.status !== 'disputed'))
   const selectedDeal = disputedDeals.find((d) => d.code === selectedDealCode) || null
   const resolve = (decision) => { resolveDispute(selectedDealCode, decision); refresh() }
+
+  const pendingRefundCount = refunds.filter((r) => r.status === 'pending').length
+  const markRefundSent = (id) => { completeRefund(id); refresh() }
 
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null
@@ -157,6 +164,7 @@ function Team() {
           <button className={section === 'verifications' ? 'active' : ''} onClick={() => setSection('verifications')}><IdCard size={14} /> Verifications{records.filter((r) => r.status === 'pending').length > 0 && <i>{records.filter((r) => r.status === 'pending').length}</i>}</button>
           <button className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><UsersIcon size={14} /> Users</button>
           <button className={section === 'disputes' ? 'active' : ''} onClick={() => setSection('disputes')}><Flag size={14} /> Disputes{openDisputeCount > 0 && <i>{openDisputeCount}</i>}</button>
+          <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Undo2 size={14} /> Refunds{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
           <button className={section === 'transactions' ? 'active' : ''} onClick={() => setSection('transactions')}><Receipt size={14} /> Transactions</button>
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
         </div>
@@ -322,6 +330,28 @@ function Team() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {section === 'refunds' && (
+        <div className="team-tx-page">
+          {refunds.length === 0 ? <div className="team-empty">No refund requests yet.</div> : (
+            <div className="team-tx-list">
+              {refunds.map((r) => (
+                <div className="team-tx-row" key={r.id}>
+                  <span className="activity-icon orange"><Undo2 size={16} /></span>
+                  <div>
+                    <b>{symbolFor(r.currency)} {money(r.amount)}</b>
+                    <span>{r.email}{r.note ? ` · ${r.note}` : ''}</span>
+                  </div>
+                  <span className="team-tx-date">{new Date(r.requestedAt).toLocaleString()}</span>
+                  {r.status === 'pending'
+                    ? <button className="team-approve" onClick={() => markRefundSent(r.id)}><Check size={14} /> Mark as sent</button>
+                    : <span className="team-badge verified">sent</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

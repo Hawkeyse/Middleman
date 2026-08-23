@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Grid2X2, Image as ImageIcon,
-  LayoutList, Link2, LockKeyhole, Plus, Send, ShieldAlert, ShieldCheck, Sparkles, Wallet, X,
+  LayoutList, Link2, LockKeyhole, Loader2, Plus, Send, ShieldAlert, ShieldCheck, ShoppingBag, Sparkles, Store, Undo2, Wallet, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
+import { getWalletBalance, logWalletEntry, requestRefund } from '../state/wallet.js'
+import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack.js'
 import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
 import SupportChat from '../components/SupportChat.jsx'
 import './Dashboard.css'
@@ -57,6 +59,19 @@ function Dashboard() {
   const [disputeTarget, setDisputeTarget] = useState(null)
   const [disputeReason, setDisputeReason] = useState('')
 
+  // Buyer vs seller is a view/mode toggle, not a separate account — anyone
+  // can do both. Selling shows the existing create-a-deal flow; buying shows
+  // the wallet you fund and spend from when accepting invites.
+  const [mode, setMode] = useState('seller')
+  const [depositOpen, setDepositOpen] = useState(false)
+  const [depositForm, setDepositForm] = useState({ currency: 'GHS', amount: '' })
+  const [depositing, setDepositing] = useState(false)
+  const [depositError, setDepositError] = useState('')
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundForm, setRefundForm] = useState({ currency: 'GHS', amount: '', note: '' })
+  const [refundError, setRefundError] = useState('')
+  const [refundSent, setRefundSent] = useState(false)
+
   // Recomputed fresh on every render straight from localStorage (see
   // src/state/deals.js and transactions.js) so any mutation — a new deal, a
   // payment landing, a release — shows up immediately without extra plumbing.
@@ -73,6 +88,8 @@ function Dashboard() {
       balances[cur] = (balances[cur] || 0) + Number(t.amount)
     }
   }
+
+  const walletBalances = { GHS: getWalletBalance(user.email, 'GHS'), NGN: getWalletBalance(user.email, 'NGN'), USD: getWalletBalance(user.email, 'USD') }
 
   const completedCount = deals.filter((d) => d.status === 'released').length
   const warningsCount = accountStatus?.warnings?.length || 0
@@ -96,6 +113,14 @@ function Dashboard() {
   const balanceDisplay = Object.entries(CURRENCIES)
     .map(([cur]) => [cur, { GHS: balanceGHS, NGN: balanceNGN, USD: balanceUSD }[cur]])
     .filter(([cur]) => balances[cur] > 0)
+    .map(([cur, val]) => `${symbolFor(cur)} ${money(val)}`)
+    .join(' · ') || '₵ 0.00'
+  const walletGHS = useCountUp(walletBalances.GHS, 1300)
+  const walletNGN = useCountUp(walletBalances.NGN, 1300)
+  const walletUSD = useCountUp(walletBalances.USD, 1300)
+  const walletBalanceDisplay = Object.entries(CURRENCIES)
+    .map(([cur]) => [cur, { GHS: walletGHS, NGN: walletNGN, USD: walletUSD }[cur]])
+    .filter(([cur]) => walletBalances[cur] > 0)
     .map(([cur, val]) => `${symbolFor(cur)} ${money(val)}`)
     .join(' · ') || '₵ 0.00'
   const trustScore = useCountUp(trustScoreTarget, 1400)
@@ -130,6 +155,40 @@ function Dashboard() {
     if (!disputeTarget || !disputeReason.trim()) return
     disputeDeal(disputeTarget.code, user.email, disputeReason.trim())
     closeDispute()
+  }
+
+  const openDeposit = () => { setDepositForm({ currency: 'GHS', amount: '' }); setDepositError(''); setDepositOpen(true) }
+  const closeDeposit = () => { if (!depositing) setDepositOpen(false) }
+  const submitDeposit = async (e) => {
+    e.preventDefault()
+    setDepositError('')
+    setDepositing(true)
+    try {
+      const reference = await payWithPaystack({
+        email: user.email, amount: Number(depositForm.amount), currency: depositForm.currency,
+        dealCode: `WALLET-${Date.now().toString(36).toUpperCase()}`,
+      })
+      const verified = await verifyPaystackPayment(reference)
+      if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
+      logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
+      setDepositOpen(false)
+    } catch (err) {
+      setDepositError(err.message || 'Deposit failed. Please try again.')
+    } finally {
+      setDepositing(false)
+    }
+  }
+
+  const openRefund = () => { setRefundForm({ currency: 'GHS', amount: '', note: '' }); setRefundError(''); setRefundSent(false); setRefundOpen(true) }
+  const submitRefund = (e) => {
+    e.preventDefault()
+    const amt = Number(refundForm.amount)
+    const available = walletBalances[refundForm.currency] || 0
+    if (!amt || amt <= 0) { setRefundError('Enter an amount.'); return }
+    if (amt > available) { setRefundError(`You only have ${symbolFor(refundForm.currency)} ${money(available)} available.`); return }
+    requestRefund({ email: user.email, amount: amt, currency: refundForm.currency, note: refundForm.note })
+    setRefundError('')
+    setRefundSent(true)
   }
 
   // Deal-affecting actions require identity verification first.
@@ -188,7 +247,11 @@ function Dashboard() {
           : 'All caught up'
 
   const heroAction = () => {
-    if (!activeDeal) { requireSellerReady(() => setNewDealOpen(true)); return }
+    if (!activeDeal) {
+      if (mode === 'buyer') requireVerified(openDeposit)
+      else requireSellerReady(() => setNewDealOpen(true))
+      return
+    }
     document.getElementById('current-deal')?.scrollIntoView({ behavior: 'smooth' })
   }
 
@@ -204,6 +267,10 @@ function Dashboard() {
       <aside className="sidebar">
         <button className="brand-lockup" onClick={() => navigate('/')}><div className="brand-mark"><img src="/middleman-logo.png" alt="Middleman" /></div><div><strong>middleman</strong><span>Pay safe. Receive first</span></div></button>
         <div className="workspace-switcher"><span className="avatar avatar-blue">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name ? `${user.name.split(' ')[0]}'s space` : 'Your space'}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
+        <div className="mode-toggle">
+          <button className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}><Store size={14} /> Selling</button>
+          <button className={mode === 'buyer' ? 'active' : ''} onClick={() => setMode('buyer')}><ShoppingBag size={14} /> Buying</button>
+        </div>
         <nav className="main-nav" aria-label="Main navigation">
           <div className="nav-pill" style={pillStyle}></div>
           {['Overview', 'My deals', 'Wallet', 'Contacts'].map((item, index) => <button key={item} ref={(el) => { navRefs.current[item] = el }} className={activeTab === item ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(item)}>{index === 0 ? <Grid2X2 size={18} /> : index === 1 ? <LayoutList size={18} /> : index === 2 ? <Wallet size={18} /> : <CircleHelp size={18} />}{item}{item === 'My deals' && deals.length > 0 && <span className="nav-count">{deals.length}</span>}</button>)}
@@ -217,11 +284,11 @@ function Dashboard() {
       </aside>
 
       <main className="content">
-        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i></i></button><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button><button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button></div></header>
+        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i></i></button><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>Available balance</small><b>{balanceDisplay}</b></span><ArrowUpRight size={17} /></div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Undo2 size={15} /></button> : <ArrowUpRight size={17} />}</div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>
@@ -268,7 +335,7 @@ function Dashboard() {
         ) : (
         <>
         <section className="hero-grid animate-in" style={{ animationDelay: '110ms' }}>
-          <div className="hero-card"><div className="hero-copy"><span className="status-chip"><span className="pulse-dot"></span> {heroChip}</span><h2>One step closer<br /><em>to a safe delivery.</em></h2><p>{activeDeal ? 'Your payment is locked and protected. Confirm when your package arrives, and we will release it instantly.' : 'Create a deal and we\'ll hand you an invite link — your buyer pays into escrow, and the money stays locked until you both agree it\'s done.'}</p><button className="hero-cta" onClick={heroAction}>{activeDeal ? 'Review current deal' : 'Create your first deal'} <ArrowUpRight size={17} /></button></div><div className="orb orb-one"></div><div className="orb orb-two"></div>{activeDeal && <div className="hero-stamp"><LockKeyhole size={17} /><span>{symbolFor(activeDeal.currency)} {money(activeDeal.amount)}<br /><small>held securely</small></span></div>}</div>
+          <div className="hero-card"><div className="hero-copy"><span className="status-chip"><span className="pulse-dot"></span> {heroChip}</span><h2>One step closer<br /><em>to a safe delivery.</em></h2><p>{activeDeal ? 'Your payment is locked and protected. Confirm when your package arrives, and we will release it instantly.' : mode === 'buyer' ? 'Top up your wallet so you\'re ready to accept an invite the moment one comes in — no separate payment needed at accept-time.' : 'Create a deal and we\'ll hand you an invite link — your buyer pays into escrow, and the money stays locked until you both agree it\'s done.'}</p><button className="hero-cta" onClick={heroAction}>{activeDeal ? 'Review current deal' : mode === 'buyer' ? 'Deposit funds' : 'Create your first deal'} <ArrowUpRight size={17} /></button></div><div className="orb orb-one"></div><div className="orb orb-two"></div>{activeDeal && <div className="hero-stamp"><LockKeyhole size={17} /><span>{symbolFor(activeDeal.currency)} {money(activeDeal.amount)}<br /><small>held securely</small></span></div>}</div>
           <div className="stats-card"><div className="section-label">YOUR TRUST SCORE <span>?</span></div><div className="score-row"><strong>{Math.round(trustScore)}</strong><span>/ 100</span><div className="score-ring"><ShieldCheck size={24} /></div></div><p>{trustScoreTarget >= 90 ? 'Excellent. You are building a trusted track record.' : trustScoreTarget >= 70 ? 'Good standing — keep completing deals cleanly.' : 'Complete deals without issues to raise this.'}</p><div className="mini-bars"><i style={{ height: '44%' }}></i><i style={{ height: '63%' }}></i><i style={{ height: '56%' }}></i><i style={{ height: '80%' }}></i><i className="hot" style={{ height: '96%' }}></i><i style={{ height: '72%' }}></i><i style={{ height: '86%' }}></i></div>{completedCount > 0 ? <small className="trend"><ArrowUpRight size={13} /> {completedCount} deal{completedCount === 1 ? '' : 's'} completed</small> : <small className="trend neutral">Complete a deal to start building trust.</small>}</div>
         </section>
 
@@ -411,6 +478,49 @@ function Dashboard() {
           <p className="deal-invite-note">Once your buyer accepts and pays, the money is held safe with Middleman until you ship and they confirm delivery.</p>
           <button className="confirm-button deal-submit" onClick={closeNewDeal}>Done</button>
         </>}
+      </div></div>}
+
+      {depositOpen && <div className="modal-backdrop" onClick={closeDeposit}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={closeDeposit}><X size={18} /></button>
+        <div className="modal-icon"><Wallet size={22} /></div>
+        <div className="section-label">DEPOSIT FUNDS</div>
+        <h2>Add money to your wallet</h2>
+        <p>Top up your Middleman wallet — spend it on any deal you accept, whenever you accept it.</p>
+        {depositError && <p className="invite-error"><ShieldAlert size={13} /> {depositError}</p>}
+        <form onSubmit={submitDeposit}>
+          <div className="deal-form-row">
+            <div className="deal-form-field"><label htmlFor="deposit-currency">Currency</label><select id="deposit-currency" value={depositForm.currency} onChange={(e) => setDepositForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
+            <div className="deal-form-field"><label htmlFor="deposit-amount">Amount</label><input id="deposit-amount" required type="number" min="1" step="0.01" value={depositForm.amount} onChange={(e) => setDepositForm((f) => ({ ...f, amount: e.target.value }))} placeholder="100.00" /></div>
+          </div>
+          <button className="confirm-button deal-submit" type="submit" disabled={depositing}>{depositing ? <><Loader2 size={16} className="spin" /> Processing…</> : 'Deposit'}</button>
+        </form>
+      </div></div>}
+
+      {refundOpen && <div className="modal-backdrop" onClick={() => setRefundOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={() => setRefundOpen(false)}><X size={18} /></button>
+        <div className="modal-icon gate"><Undo2 size={22} /></div>
+        <div className="section-label">REQUEST REFUND</div>
+        {refundSent ? (
+          <>
+            <h2>Refund requested</h2>
+            <p>We've reserved {symbolFor(refundForm.currency)} {money(Number(refundForm.amount))} out of your spendable balance. Our team sends refunds manually — this can take a little while.</p>
+            <button className="confirm-button deal-submit" onClick={() => setRefundOpen(false)}>Done</button>
+          </>
+        ) : (
+          <>
+            <h2>Pull unused funds back out</h2>
+            <p>Refunds are handled manually by the team, not automatically — this just puts in the request.</p>
+            {refundError && <p className="invite-error"><ShieldAlert size={13} /> {refundError}</p>}
+            <form onSubmit={submitRefund}>
+              <div className="deal-form-row">
+                <div className="deal-form-field"><label htmlFor="refund-currency">Currency</label><select id="refund-currency" value={refundForm.currency} onChange={(e) => setRefundForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
+                <div className="deal-form-field"><label htmlFor="refund-amount">Amount</label><input id="refund-amount" required type="number" min="1" step="0.01" value={refundForm.amount} onChange={(e) => setRefundForm((f) => ({ ...f, amount: e.target.value }))} placeholder="100.00" /></div>
+              </div>
+              <div className="deal-form-field"><label htmlFor="refund-note">Note (optional)</label><input id="refund-note" value={refundForm.note} onChange={(e) => setRefundForm((f) => ({ ...f, note: e.target.value }))} placeholder="Why you're asking for it back" /></div>
+              <button className="confirm-button deal-submit" type="submit">Request refund</button>
+            </form>
+          </>
+        )}
       </div></div>}
 
       {supportOpen && <SupportChat email={user.email} name={user.name} onClose={() => setSupportOpen(false)} />}
