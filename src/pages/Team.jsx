@@ -5,7 +5,7 @@ import {
   Lock, Receipt, ShieldAlert, TriangleAlert, Users as UsersIcon, X, ZoomIn,
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
-import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread } from '../state/chat.js'
+import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
 import { listAllTransactions } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
@@ -67,6 +67,7 @@ function Team() {
 
   const [threads, setThreads] = useState([])
   const [selectedEmail, setSelectedEmail] = useState(null)
+  const [customerTyping, setCustomerTyping] = useState(false)
 
   const [users, setUsers] = useState([])
   const [selectedUserEmail, setSelectedUserEmail] = useState(null)
@@ -91,6 +92,18 @@ function Team() {
     window.addEventListener('mm-chat-updated', refresh)
     return () => window.removeEventListener('mm-chat-updated', refresh)
   }, [unlocked])
+
+  useEffect(() => {
+    if (!selectedEmail) { setCustomerTyping(false); return }
+    const check = () => setCustomerTyping(getTypingRole(selectedEmail, 'team') === 'customer')
+    check()
+    window.addEventListener('mm-typing-updated', check)
+    const id = window.setInterval(check, 1000)
+    return () => {
+      window.removeEventListener('mm-typing-updated', check)
+      window.clearInterval(id)
+    }
+  }, [selectedEmail])
 
   // Grouped by currency — a single summed number would mix dollars, cedis and naira.
   const feesByCurrency = {}
@@ -120,8 +133,8 @@ function Team() {
     refresh()
   }
 
-  const replyToCustomer = (text) => {
-    sendMessage(selectedEmail, { from: 'team', text })
+  const replyToCustomer = (text, image) => {
+    sendMessage(selectedEmail, { from: 'team', text, image })
     refresh()
   }
 
@@ -364,6 +377,8 @@ function Team() {
                   onSend={replyToCustomer}
                   selfRole="team"
                   placeholder="Reply as Middleman team…"
+                  onTyping={() => setTyping(selectedThread.email, 'team')}
+                  typingLabel={customerTyping ? `${selectedThread.name || 'Customer'} is typing` : null}
                   footer={selectedThread.status === 'waiting'
                     ? <div className="chat-join-row"><button className="chat-join-button" onClick={() => joinChat(selectedThread.email)}><Headset size={15} /> Join chat</button></div>
                     : selectedThread.status === 'closed'

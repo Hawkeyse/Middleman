@@ -36,16 +36,53 @@ function normalize(thread) {
 // Same localStorage-as-backend-stand-in caveat as deals.js/verifications.js —
 // a real build needs a server (and ideally realtime) so team replies actually
 // reach the customer on a different device.
-export function sendMessage(email, { from, text, name }) {
+export function sendMessage(email, { from, text, image, name }) {
   const all = readAll()
   if (!all[email]) all[email] = { email, name, messages: [], status: 'waiting', lastReadByCustomer: null, lastReadByTeam: null }
   if (name) all[email].name = name
   // A customer messaging a closed ticket reopens it and puts it back in the queue.
   if (from === 'customer' && normalize(all[email]).status === 'closed') all[email].status = 'waiting'
-  all[email].messages.push({ from, text, at: new Date().toISOString() })
+  all[email].messages.push({ from, text: text || '', image: image || null, at: new Date().toISOString() })
   all[email][readKey(from)] = new Date().toISOString()
   writeAll(all)
   return normalize(all[email])
+}
+
+// ---- typing indicator ----
+// Kept in a separate storage key/event from the threads themselves — typing
+// fires on every keystroke, and we don't want that triggering a full
+// re-fetch of every list Team.jsx's 'mm-chat-updated' handler reloads.
+const TYPING_KEY = 'mm_chat_typing'
+const TYPING_TTL_MS = 3000
+
+function readTyping() {
+  try { return JSON.parse(localStorage.getItem(TYPING_KEY)) || {} } catch { return {} }
+}
+
+export function setTyping(email, role) {
+  if (!email) return
+  const all = readTyping()
+  all[email] = { ...all[email], [role]: Date.now() }
+  try {
+    localStorage.setItem(TYPING_KEY, JSON.stringify(all))
+    window.dispatchEvent(new Event('mm-typing-updated'))
+  } catch {
+    // storage unavailable — typing indicator just won't show, not fatal
+  }
+}
+
+// Returns the role currently typing (excluding `exceptRole`, so you don't see
+// your own "typing…" reflected back), or null if nobody recently was.
+export function getTypingRole(email, exceptRole) {
+  if (!email) return null
+  const entry = readTyping()[email]
+  if (!entry) return null
+  const now = Date.now()
+  for (const role of ['team', 'customer']) {
+    if (role === exceptRole) continue
+    if (entry[role] && now - entry[role] < TYPING_TTL_MS) return role
+  }
+  return null
 }
 
 // A team member claims an unattended thread.

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Headset, Loader2 } from 'lucide-react'
 import ChatThread from './ChatThread.jsx'
-import { getThread, sendMessage, markRead, getUnreadCount } from '../state/chat.js'
+import { getThread, sendMessage, markRead, getUnreadCount, setTyping, getTypingRole } from '../state/chat.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import './SupportChat.css'
 
@@ -13,6 +13,7 @@ const statusCopy = {
 
 function SupportChat({ email, name, onClose }) {
   const [thread, setThread] = useState(() => getThread(email))
+  const [teamTyping, setTeamTyping] = useState(false)
 
   useEffect(() => {
     setThread(getThread(email))
@@ -34,8 +35,23 @@ function SupportChat({ email, name, onClose }) {
     }
   }, [email])
 
-  const send = (text) => {
-    const updated = sendMessage(email, { from: 'customer', text, name })
+  // Typing state has its own short-TTL storage/event (see chat.js) so it
+  // doesn't ride along with full thread refreshes. Poll too, since the
+  // indicator needs to disappear on its own once the TTL lapses, without
+  // waiting for a new write to trigger the event.
+  useEffect(() => {
+    const check = () => setTeamTyping(getTypingRole(email, 'customer') === 'team')
+    check()
+    window.addEventListener('mm-typing-updated', check)
+    const id = window.setInterval(check, 1000)
+    return () => {
+      window.removeEventListener('mm-typing-updated', check)
+      window.clearInterval(id)
+    }
+  }, [email])
+
+  const send = (text, image) => {
+    const updated = sendMessage(email, { from: 'customer', text, image, name })
     setThread(updated)
   }
 
@@ -49,7 +65,14 @@ function SupportChat({ email, name, onClose }) {
           <button onClick={onClose} aria-label="Close"><X size={16} /></button>
         </header>
         <p className={`support-chat-sub ${status}`}>{thread?.messages?.length ? statusCopy[status] : 'Ask us anything about your deals — a real person on the team replies here.'}</p>
-        <ChatThread messages={thread?.messages} onSend={send} selfRole="customer" placeholder="Message support…" />
+        <ChatThread
+          messages={thread?.messages}
+          onSend={send}
+          selfRole="customer"
+          placeholder="Message support…"
+          onTyping={() => setTyping(email, 'customer')}
+          typingLabel={teamTyping ? 'Agent is typing' : null}
+        />
       </div>
     </div>
   )
