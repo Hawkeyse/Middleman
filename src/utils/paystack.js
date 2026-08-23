@@ -41,12 +41,20 @@ export async function payWithPaystack({ email, amount, currency, dealCode, onRef
 
   await loadPaystackScript()
 
+  // The server may have converted this to whatever currency the Paystack
+  // account actually has enabled (see api/paystack/initialize.js) — the
+  // popup must be opened with that same converted amount/currency, not the
+  // deal's original one, or it won't match what was locked into the
+  // transaction server-side.
+  const popupAmount = init.chargeAmount ?? amount
+  const popupCurrency = init.chargeCurrency ?? currency ?? 'GHS'
+
   return new Promise((resolve, reject) => {
     const handler = window.PaystackPop.setup({
       key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
       email,
-      amount: Math.round(Number(amount) * 100),
-      currency: currency || 'GHS',
+      amount: Math.round(Number(popupAmount) * 100),
+      currency: popupCurrency,
       ref: init.reference,
       access_code: init.access_code,
       callback: (response) => resolve(response.reference),

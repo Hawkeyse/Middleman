@@ -30,3 +30,4 @@
 .invite-refresh:hover{border-color:var(--blue);color:var(--blue)}
 .invite-refresh .spin{animation:inviteSpin 1s linear infinite}
 .invite-note-text{margin:0 0 14px;padding:10px 12px;border-radius:9px;background:#fff6e9;color:#8a5a12;font-size:12px;line-height:1.6;text-align:left}
+.invite-fx-note{margin:-14px 0 22px;color:#9ca7ba;font-size:10.5px;line-height:1.5;text-align:left}

@@ -340,6 +340,7 @@ function Team() {
                     <b>{t.itemName}</b>
                     <span>{t.dealCode} · {t.buyerEmail} → {t.sellerEmail}</span>
                     {t.type === 'deposit' && t.fee != null && <span className="team-tx-fee">Received {symbolFor(t.currency)}{money(t.amount)} · fee {symbolFor(t.currency)}{money(t.fee)} · seller gets {symbolFor(t.currency)}{money(t.sellerPayout)}</span>}
+                    {t.chargedCurrency && t.chargedCurrency !== t.currency && <span className="team-tx-fee">Actually charged {symbolFor(t.chargedCurrency)}{money(t.chargedAmount)} via Paystack (converted from {t.currency})</span>}
                   </div>
                   <span className="team-tx-date">{new Date(t.at).toLocaleString()}</span>
                   <strong>{symbolFor(t.currency)} {money(t.amount)}</strong>

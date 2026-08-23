@@ -20,8 +20,16 @@ function Invite() {
   const [error, setError] = useState('')
   const [checkNote, setCheckNote] = useState('')
 
-  const finalizeDeposit = ({ dealCode = code } = {}) => {
-    logTransaction({ type: 'deposit', dealCode, itemName: deal.itemName, amount: deal.buyerTotal, currency: deal.currency, fee: deal.fee, sellerPayout: deal.sellerPayout, buyerEmail: user.email, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName })
+  // verified comes straight from Paystack's own confirmation (api/paystack/
+  // verify.js) — amount/currency there are what was actually charged, which
+  // can differ from the deal's nominal amount/currency if it got converted
+  // to the merchant account's enabled currency at checkout.
+  const finalizeDeposit = ({ dealCode = code, amount: chargedAmount, currency: chargedCurrency } = {}) => {
+    logTransaction({
+      type: 'deposit', dealCode, itemName: deal.itemName, amount: deal.buyerTotal, currency: deal.currency,
+      chargedAmount, chargedCurrency, fee: deal.fee, sellerPayout: deal.sellerPayout,
+      buyerEmail: user.email, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName,
+    })
     markDealPaid(dealCode, user.email, user.name)
     localStorage.removeItem(pendingRefKey(code))
     navigate('/dashboard')
@@ -108,6 +116,10 @@ function Invite() {
           <ShieldCheck size={16} />
           <p>Pay into Middleman, not {deal.sellerName || 'the seller'} directly. We hold your money until you confirm the item has arrived — then, and only then, it's released. The seller receives the full {symbolFor(deal.currency)} {money(deal.amount)} listed price.</p>
         </div>
+
+        {deal.currency && deal.currency !== 'GHS' && (
+          <p className="invite-fx-note">Charged in Ghana Cedis (₵) at today's rate — you'll see the exact amount on the payment screen before confirming.</p>
+        )}
 
         {checkNote && <p className="invite-note-text">{checkNote}</p>}
         {error && <p className="invite-error"><ShieldAlert size={13} /> {error}</p>}

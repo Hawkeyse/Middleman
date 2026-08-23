@@ -1,27 +1,34 @@
-// Tiered fee schedule, per currency — the buyer pays it on top of the listed
-// price; the seller always receives exactly the amount they listed for.
-//
-// GHS and USD share the same numeric thresholds (this app's fee spec was
-// originally written in dollar amounts and ported to cedis 1:1). NGN uses
-// proportionally larger thresholds since ~1 USD ≈ 1,600 NGN — that rate is
-// an approximation with no live FX feed behind it, so revisit these
-// periodically rather than trusting them to stay accurate.
-const TIER_TABLES = {
-  GHS: [{ max: 50, rate: 0.05 }, { max: 200, rate: 0.03 }, { max: 1000, rate: 0.02 }, { max: Infinity, rate: 0.015 }],
-  USD: [{ max: 50, rate: 0.05 }, { max: 200, rate: 0.03 }, { max: 1000, rate: 0.02 }, { max: Infinity, rate: 0.015 }],
-  NGN: [{ max: 80000, rate: 0.05 }, { max: 320000, rate: 0.03 }, { max: 1600000, rate: 0.02 }, { max: Infinity, rate: 0.015 }],
+// Flat fee schedule (USD-native), scaled to other currencies via a fixed
+// approximate rate — NOT the live rate used for the actual charge at
+// checkout (see api/_lib/fx.js). This only decides which fee bracket a
+// listing falls into; it doesn't move any money itself, so an approximate,
+// periodically-revisited rate here is an acceptable tradeoff for keeping
+// deal creation synchronous and not needing a server round-trip just to
+// price a fee. The buyer always pays the fee on top of the listed price;
+// the seller always receives exactly the amount they listed for.
+const USD_PER_UNIT = { GHS: 15.5, NGN: 1600, USD: 1 } // approx units per $1
+const TOP_TIER_RATE = 0.025 // 2.5% — midpoint of the given 2-3% range, above the $500 tier
+
+function scale(usdValue, currency) {
+  const rate = USD_PER_UNIT[currency] || 1
+  return Math.round(usdValue * rate * 100) / 100
 }
-const MIN_FEE = { GHS: 1, USD: 1, NGN: 1500 }
-const DEFAULT_CURRENCY = 'GHS'
+
+function tiersFor(currency) {
+  return [
+    { max: scale(100, currency), fee: scale(3, currency) },
+    { max: scale(250, currency), fee: scale(5, currency) },
+    { max: scale(500, currency), fee: scale(8, currency) },
+  ]
+}
 
 // Frozen at deal-creation time and stored on the deal record, so a later
 // change to the schedule doesn't retroactively alter an existing deal.
-export function calcFee(amount, currency = DEFAULT_CURRENCY) {
+export function calcFee(amount, currency = 'GHS') {
   const amt = Number(amount) || 0
-  const tiers = TIER_TABLES[currency] || TIER_TABLES[DEFAULT_CURRENCY]
-  const minFee = MIN_FEE[currency] ?? MIN_FEE[DEFAULT_CURRENCY]
-  const rate = tiers.find((t) => amt <= t.max).rate
-  const fee = Math.max(minFee, Math.round(amt * rate * 100) / 100)
+  const tier = tiersFor(currency).find((t) => amt <= t.max)
+  const fee = tier ? tier.fee : Math.round(amt * TOP_TIER_RATE * 100) / 100
+  const feeRate = amt > 0 ? fee / amt : 0
   const buyerTotal = Math.round((amt + fee) * 100) / 100
-  return { amount: amt, currency, feeRate: rate, fee, buyerTotal, sellerPayout: amt }
+  return { amount: amt, feeRate, fee, buyerTotal, sellerPayout: amt }
 }
