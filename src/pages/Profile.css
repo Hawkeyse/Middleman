@@ -35,6 +35,8 @@
 .profile-verify-cta:hover{transform:translateY(-2px)}
 
 /* ---- payout method ---- */
+.trust-card-panel{grid-column:1/-1;animation-delay:100ms;text-align:center}
+.trust-card-panel>p{margin:6px 0 20px;color:var(--muted);font-size:12.5px;line-height:1.6}
 .payout-card{grid-column:1/-1;animation-delay:120ms}
 .payout-card>p{margin:6px 0 16px;color:var(--muted);font-size:12.5px;line-height:1.6}
 .payout-saved-note{display:flex;align-items:center;gap:6px;margin-bottom:14px;padding:9px 12px;border-radius:8px;background:#e5f8f0;color:#0e7a52;font-size:12px;font-weight:600}

@@ -4,6 +4,9 @@ import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, LogOut, Pencil, 
 import { useAppState } from '../state/AppState.jsx'
 import { setPayoutMethod } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
+import { listDealsFor } from '../state/deals.js'
+import { calcTrustScore } from '../utils/trustScore.js'
+import TrustCard from '../components/TrustCard.jsx'
 import './Profile.css'
 
 const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card', passport: 'International Passport', license: "Driver's License" }
@@ -25,6 +28,15 @@ function Profile() {
   const [editingPayout, setEditingPayout] = useState(false)
   const [payoutForm, setPayoutForm] = useState(payoutMethod || emptyPayout)
   const [payoutSaved, setPayoutSaved] = useState(false)
+
+  // Same formula Dashboard uses (src/utils/trustScore.js), so the shareable
+  // card below always matches what's shown live on the dashboard.
+  const deals = listDealsFor(user.email)
+  const completedCount = deals.filter((d) => d.status === 'released').length
+  const boughtCount = deals.filter((d) => d.status === 'released' && d.buyerEmail === user.email).length
+  const soldCount = deals.filter((d) => d.status === 'released' && d.sellerEmail === user.email).length
+  const trustScoreTarget = calcTrustScore({ completedCount, warningsCount: accountStatus?.warnings?.length || 0 })
+  const memberSince = accountStatus?.createdAt ? new Date(accountStatus.createdAt).getFullYear() : null
 
   // Pick up a team decision made from /team earlier in this browser session.
   useEffect(() => { refreshVerification() }, [refreshVerification])
@@ -116,6 +128,19 @@ function Profile() {
                 <button className="profile-verify-cta" onClick={() => navigate('/verify', { state: { from: '/profile' } })}><Camera size={15} /> Verify identity</button>
               </>
             )}
+          </div>
+
+          <div className="profile-card trust-card-panel">
+            <span className="section-label">YOUR MIDDLEMAN CARD</span>
+            <p>Your trust score and deal history — download it to show off wherever you like.</p>
+            <TrustCard
+              name={user.name}
+              trustScore={trustScoreTarget}
+              boughtCount={boughtCount}
+              soldCount={soldCount}
+              verified={verification === 'verified'}
+              memberSince={memberSince}
+            />
           </div>
 
           <div className="profile-card payout-card">

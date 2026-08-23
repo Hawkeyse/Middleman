@@ -1,0 +1,5 @@
+.trust-card-wrap{display:grid;gap:14px;justify-items:center}
+.trust-card-canvas{width:100%;max-width:520px;height:auto;border-radius:14px;box-shadow:0 20px 45px #2739661f}
+.trust-card-download{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border:0;border-radius:9px;color:#fff;background:var(--blue);font-size:12.5px;font-weight:700;box-shadow:0 8px 18px #2754ea33;transition:transform .2s}
+.trust-card-download:hover{transform:translateY(-1px)}
+.trust-card-download:disabled{opacity:.6;cursor:default;transform:none}
