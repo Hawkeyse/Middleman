@@ -7,9 +7,10 @@ import {
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
-import { listAllTransactions } from '../state/transactions.js'
+import { listAllTransactions, logTransaction } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
 import { listRefundRequests, completeRefund } from '../state/wallet.js'
+import { listPayoutRequests, markPayoutCompleted } from '../state/payoutRequests.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { money, symbolFor } from '../utils/currencies.js'
@@ -81,6 +82,7 @@ function Team() {
   const [selectedDealCode, setSelectedDealCode] = useState(null)
 
   const [refunds, setRefunds] = useState([])
+  const [payouts, setPayouts] = useState([])
 
   const refresh = () => {
     setRecords(listVerifications())
@@ -89,6 +91,7 @@ function Team() {
     setTransactions(listAllTransactions())
     setDeals(listAllDeals())
     setRefunds(listRefundRequests())
+    setPayouts(listPayoutRequests())
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -125,8 +128,19 @@ function Team() {
   const selectedDeal = disputedDeals.find((d) => d.code === selectedDealCode) || null
   const resolve = (decision) => { resolveDispute(selectedDealCode, decision); refresh() }
 
-  const pendingRefundCount = refunds.filter((r) => r.status === 'pending').length
+  // Refunds (buyer wallet) and payouts (seller earnings) are different money
+  // flows underneath, but the team just wants one queue of "money to send out".
+  const withdrawals = [
+    ...refunds.map((r) => ({ ...r, kind: 'refund' })),
+    ...payouts.map((p) => ({ ...p, kind: 'payout' })),
+  ].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
+  const pendingRefundCount = withdrawals.filter((r) => r.status === 'pending').length
   const markRefundSent = (id) => { completeRefund(id); refresh() }
+  const markPayoutSent = (request) => {
+    markPayoutCompleted(request.id)
+    logTransaction({ type: 'payout', itemName: 'Wallet payout', amount: request.amount, currency: request.currency, sellerEmail: request.email, counterparty: 'Middleman' })
+    refresh()
+  }
 
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null
@@ -164,7 +178,7 @@ function Team() {
           <button className={section === 'verifications' ? 'active' : ''} onClick={() => setSection('verifications')}><IdCard size={14} /> Verifications{records.filter((r) => r.status === 'pending').length > 0 && <i>{records.filter((r) => r.status === 'pending').length}</i>}</button>
           <button className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><UsersIcon size={14} /> Users</button>
           <button className={section === 'disputes' ? 'active' : ''} onClick={() => setSection('disputes')}><Flag size={14} /> Disputes{openDisputeCount > 0 && <i>{openDisputeCount}</i>}</button>
-          <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Undo2 size={14} /> Refunds{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
+          <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Undo2 size={14} /> Withdrawals{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
           <button className={section === 'transactions' ? 'active' : ''} onClick={() => setSection('transactions')}><Receipt size={14} /> Transactions</button>
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
         </div>
@@ -335,18 +349,18 @@ function Team() {
 
       {section === 'refunds' && (
         <div className="team-tx-page">
-          {refunds.length === 0 ? <div className="team-empty">No refund requests yet.</div> : (
+          {withdrawals.length === 0 ? <div className="team-empty">No withdrawal requests yet.</div> : (
             <div className="team-tx-list">
-              {refunds.map((r) => (
+              {withdrawals.map((r) => (
                 <div className="team-tx-row" key={r.id}>
                   <span className="activity-icon orange"><Undo2 size={16} /></span>
                   <div>
-                    <b>{symbolFor(r.currency)} {money(r.amount)}</b>
+                    <b>{symbolFor(r.currency)} {money(r.amount)} <span className="team-tx-fee">{r.kind === 'payout' ? 'seller payout' : 'buyer refund'}</span></b>
                     <span>{r.email}{r.note ? ` · ${r.note}` : ''}</span>
                   </div>
                   <span className="team-tx-date">{new Date(r.requestedAt).toLocaleString()}</span>
                   {r.status === 'pending'
-                    ? <button className="team-approve" onClick={() => markRefundSent(r.id)}><Check size={14} /> Mark as sent</button>
+                    ? <button className="team-approve" onClick={() => (r.kind === 'payout' ? markPayoutSent(r) : markRefundSent(r.id))}><Check size={14} /> Mark as sent</button>
                     : <span className="team-badge verified">sent</span>}
                 </div>
               ))}

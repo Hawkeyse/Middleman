@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, Globe, Lock, ShieldCheck, Sparkles, Star } from 'lucide-react'
+import { useAppState } from '../state/AppState.jsx'
 import './Welcome.css'
 
 const steps = [
@@ -16,6 +17,8 @@ const stats = [
 
 function Welcome() {
   const navigate = useNavigate()
+  const { authed } = useAppState()
+  const primaryAction = () => navigate(authed ? '/dashboard' : '/signup')
 
   return (
     <div className="welcome">
@@ -30,8 +33,14 @@ function Welcome() {
           <div className="welcome-brand"><img src="/middleman-logo.png" alt="Middleman" /><span>middleman</span></div>
           <nav>
             <a href="#how-it-works">How it works</a>
-            <Link className="ghost-button" to="/login">Log in</Link>
-            <button className="cta-button" onClick={() => navigate('/signup')}>Get started <ArrowRight size={16} /></button>
+            {authed ? (
+              <button className="cta-button" onClick={() => navigate('/dashboard')}>Go to dashboard <ArrowRight size={16} /></button>
+            ) : (
+              <>
+                <Link className="ghost-button" to="/login">Log in</Link>
+                <button className="cta-button" onClick={() => navigate('/signup')}>Get started <ArrowRight size={16} /></button>
+              </>
+            )}
           </nav>
         </header>
 
@@ -42,7 +51,7 @@ function Welcome() {
             <p className="tagline">Pay safe. Receive first.</p>
             <p className="hero-sub">Buying something from a stranger online? Don't send money direct — send it to us. We hold it safe until your package lands, then release it to the seller. Anywhere in the world, no wahala.</p>
             <div className="hero-actions">
-              <button className="cta-button large" onClick={() => navigate('/signup')}>Get started — it's free <ArrowRight size={17} /></button>
+              <button className="cta-button large" onClick={primaryAction}>{authed ? 'Go to your dashboard' : "Get started — it's free"} <ArrowRight size={17} /></button>
               <a className="ghost-link" href="#how-it-works">See how it works <ArrowUpRight size={15} /></a>
             </div>
             <div className="hero-stats">
@@ -74,7 +83,7 @@ function Welcome() {
             </div>
           ))}
         </div>
-        <button className="cta-button large center" onClick={() => navigate('/signup')}>Get started — it's free <ArrowRight size={17} /></button>
+        <button className="cta-button large center" onClick={primaryAction}>{authed ? 'Go to your dashboard' : "Get started — it's free"} <ArrowRight size={17} /></button>
       </section>
 
       <footer className="welcome-footer">
@@ -82,7 +91,7 @@ function Welcome() {
         <div className="welcome-footer-links">
           <Link className="ghost-link" to="/terms">Terms of Service</Link>
           <Link className="ghost-link team-link" to="/team" title="Middleman Team" aria-label="Middleman Team"><Lock size={13} /></Link>
-          <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>
+          {authed ? <Link className="ghost-link" to="/dashboard">Dashboard <ArrowUpRight size={14} /></Link> : <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>}
         </div>
       </footer>
     </div>

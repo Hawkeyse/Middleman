@@ -9,8 +9,10 @@ import { useChatNotify } from '../hooks/useChatNotify.js'
 import { createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
 import { getWalletBalance, logWalletEntry, requestRefund } from '../state/wallet.js'
+import { requestPayout } from '../state/payoutRequests.js'
 import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack.js'
 import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
+import { calcTrustScore } from '../utils/trustScore.js'
 import SupportChat from '../components/SupportChat.jsx'
 import './Dashboard.css'
 
@@ -32,7 +34,8 @@ function useCountUp(target, duration = 1200) {
 }
 
 const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded' }
-const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} /> }
+const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} />, payout: <ArrowUpRight size={16} /> }
+const activityLabel = { deposit: 'Paid into escrow', release: 'Funds released', payout: 'Payout sent' }
 
 function Dashboard() {
   const navigate = useNavigate()
@@ -63,6 +66,7 @@ function Dashboard() {
   // can do both. Selling shows the existing create-a-deal flow; buying shows
   // the wallet you fund and spend from when accepting invites.
   const [mode, setMode] = useState('seller')
+  const [notifOpen, setNotifOpen] = useState(false)
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositForm, setDepositForm] = useState({ currency: 'GHS', amount: '' })
   const [depositing, setDepositing] = useState(false)
@@ -71,6 +75,10 @@ function Dashboard() {
   const [refundForm, setRefundForm] = useState({ currency: 'GHS', amount: '', note: '' })
   const [refundError, setRefundError] = useState('')
   const [refundSent, setRefundSent] = useState(false)
+  const [payoutRequestOpen, setPayoutRequestOpen] = useState(false)
+  const [payoutRequestForm, setPayoutRequestForm] = useState({ currency: 'GHS', amount: '', note: '' })
+  const [payoutRequestError, setPayoutRequestError] = useState('')
+  const [payoutRequestSent, setPayoutRequestSent] = useState(false)
 
   // Recomputed fresh on every render straight from localStorage (see
   // src/state/deals.js and transactions.js) so any mutation — a new deal, a
@@ -83,17 +91,17 @@ function Dashboard() {
   // useCountUp a fixed number of times below stays rules-of-hooks-safe.
   const balances = { GHS: 0, NGN: 0, USD: 0 }
   for (const t of transactions) {
-    if (t.type === 'release' && t.sellerEmail === user.email) {
-      const cur = t.currency || 'GHS'
-      balances[cur] = (balances[cur] || 0) + Number(t.amount)
-    }
+    if (t.sellerEmail !== user.email) continue
+    const cur = t.currency || 'GHS'
+    if (t.type === 'release') balances[cur] = (balances[cur] || 0) + Number(t.amount)
+    else if (t.type === 'payout') balances[cur] = (balances[cur] || 0) - Number(t.amount)
   }
 
   const walletBalances = { GHS: getWalletBalance(user.email, 'GHS'), NGN: getWalletBalance(user.email, 'NGN'), USD: getWalletBalance(user.email, 'USD') }
 
   const completedCount = deals.filter((d) => d.status === 'released').length
   const warningsCount = accountStatus?.warnings?.length || 0
-  const trustScoreTarget = Math.max(0, Math.min(100, 80 + completedCount * 3 - warningsCount * 10))
+  const trustScoreTarget = calcTrustScore({ completedCount, warningsCount })
 
   // The one deal most worth surfacing on the overview: a live dispute first
   // (both sides want eyes on that), then something needing the signed-in
@@ -129,6 +137,13 @@ function Dashboard() {
     const el = navRefs.current[activeTab]
     if (el) setPillStyle({ transform: `translateY(${el.offsetTop}px)`, height: `${el.offsetHeight}px` })
   }, [activeTab])
+
+  useEffect(() => {
+    if (!notifOpen) return
+    const close = () => setNotifOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [notifOpen])
 
   const copyId = () => {
     if (!activeDeal) return
@@ -189,6 +204,19 @@ function Dashboard() {
     requestRefund({ email: user.email, amount: amt, currency: refundForm.currency, note: refundForm.note })
     setRefundError('')
     setRefundSent(true)
+  }
+
+  const openPayoutRequest = () => { setPayoutRequestForm({ currency: 'GHS', amount: '', note: '' }); setPayoutRequestError(''); setPayoutRequestSent(false); setPayoutRequestOpen(true) }
+  const submitPayoutRequest = (e) => {
+    e.preventDefault()
+    const amt = Number(payoutRequestForm.amount)
+    const available = balances[payoutRequestForm.currency] || 0
+    if (!amt || amt <= 0) { setPayoutRequestError('Enter an amount.'); return }
+    if (amt > available) { setPayoutRequestError(`You only have ${symbolFor(payoutRequestForm.currency)} ${money(available)} available.`); return }
+    if (!hasPayoutMethod) { setPayoutRequestError('Add a payout method in your profile first.'); return }
+    requestPayout({ email: user.email, amount: amt, currency: payoutRequestForm.currency, note: payoutRequestForm.note })
+    setPayoutRequestError('')
+    setPayoutRequestSent(true)
   }
 
   // Deal-affecting actions require identity verification first.
@@ -265,7 +293,7 @@ function Dashboard() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand-lockup" onClick={() => navigate('/')}><div className="brand-mark"><img src="/middleman-logo.png" alt="Middleman" /></div><div><strong>middleman</strong><span>Pay safe. Receive first</span></div></button>
+        <button className="brand-lockup" onClick={() => navigate('/dashboard')}><div className="brand-mark"><img src="/middleman-logo.png" alt="Middleman" /></div><div><strong>middleman</strong><span>Pay safe. Receive first</span></div></button>
         <div className="workspace-switcher"><span className="avatar avatar-blue">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name ? `${user.name.split(' ')[0]}'s space` : 'Your space'}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
         <div className="mode-toggle">
           <button className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}><Store size={14} /> Selling</button>
@@ -284,11 +312,20 @@ function Dashboard() {
       </aside>
 
       <main className="content">
-        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i></i></button><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
+        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><div className="notif-wrap"><button className="icon-button" aria-label="Notifications" onClick={() => setNotifOpen((o) => !o)}><Bell size={19} /><i></i></button>{notifOpen && (
+          <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="notif-panel-head"><b>Notifications</b><button onClick={() => setNotifOpen(false)} aria-label="Close"><X size={14} /></button></div>
+            <div className="notif-panel-body">
+              <h4>Middleman is currently under development</h4>
+              <p>Please note that our payment and account registration systems are still under development. We'll notify you once Middleman is fully launched and ready to use.</p>
+              <p>Thank you for checking in and for your interest in Middleman!</p>
+            </div>
+          </div>
+        )}</div><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Undo2 size={15} /></button> : <ArrowUpRight size={17} />}</div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Undo2 size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Undo2 size={15} /></button>}</div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>
@@ -300,8 +337,8 @@ function Dashboard() {
                 {transactions.map((t) => (
                   <div className="wallet-row" key={t.id}>
                     <span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{activityIcon[t.type]}</span>
-                    <p><b>{t.type === 'deposit' ? 'Paid into escrow' : 'Funds released'}</b><small>{t.itemName} <span>•</span> {t.counterparty} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p>
-                    <strong className={t.type === 'deposit' ? 'negative' : 'positive'}>{t.type === 'deposit' ? '−' : '+'}{symbolFor(t.currency)} {money(t.amount)}</strong>
+                    <p><b>{activityLabel[t.type] || t.type}</b><small>{t.itemName} <span>•</span> {t.counterparty} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p>
+                    <strong className={t.type === 'release' ? 'positive' : 'negative'}>{t.type === 'release' ? '+' : '−'}{symbolFor(t.currency)} {money(t.amount)}</strong>
                   </div>
                 ))}
               </div>
@@ -375,7 +412,7 @@ function Dashboard() {
             <div className="section-heading"><div><div className="section-label">RECENT ACTIVITY</div><h2>Everything in one place</h2></div>{transactions.length > 0 && <button className="text-button" onClick={() => setActiveTab('Wallet')}>View all <ArrowUpRight size={15} /></button>}</div>
             <div className="activity-list">
               {transactions.length === 0 ? <div className="wallet-empty">Nothing yet — activity shows up here once a deal moves.</div> : transactions.slice(0, 3).map((t) => (
-                <div key={t.id}><span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{activityIcon[t.type]}</span><p><b>{t.type === 'deposit' ? 'Payment protected' : 'Funds released'}</b><small>{t.itemName} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p><strong>{symbolFor(t.currency)} {money(t.amount)}</strong></div>
+                <div key={t.id}><span className={t.type === 'release' ? 'activity-icon green' : 'activity-icon blue'}>{activityIcon[t.type]}</span><p><b>{t.type === 'deposit' ? 'Payment protected' : activityLabel[t.type] || t.type}</b><small>{t.itemName} <span>•</span> {new Date(t.at).toLocaleDateString()}</small></p><strong>{symbolFor(t.currency)} {money(t.amount)}</strong></div>
               ))}
             </div>
           </div>
@@ -518,6 +555,33 @@ function Dashboard() {
               </div>
               <div className="deal-form-field"><label htmlFor="refund-note">Note (optional)</label><input id="refund-note" value={refundForm.note} onChange={(e) => setRefundForm((f) => ({ ...f, note: e.target.value }))} placeholder="Why you're asking for it back" /></div>
               <button className="confirm-button deal-submit" type="submit">Request refund</button>
+            </form>
+          </>
+        )}
+      </div></div>}
+
+      {payoutRequestOpen && <div className="modal-backdrop" onClick={() => setPayoutRequestOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={() => setPayoutRequestOpen(false)}><X size={18} /></button>
+        <div className="modal-icon gate"><Undo2 size={22} /></div>
+        <div className="section-label">REQUEST PAYOUT</div>
+        {payoutRequestSent ? (
+          <>
+            <h2>Payout requested</h2>
+            <p>Our team sends payouts manually to the payout method on your profile — this can take a little while.</p>
+            <button className="confirm-button deal-submit" onClick={() => setPayoutRequestOpen(false)}>Done</button>
+          </>
+        ) : (
+          <>
+            <h2>Get your earnings sent out</h2>
+            <p>Payouts go to the mobile money/bank details on your profile, handled manually by the team.</p>
+            {payoutRequestError && <p className="invite-error"><ShieldAlert size={13} /> {payoutRequestError}</p>}
+            <form onSubmit={submitPayoutRequest}>
+              <div className="deal-form-row">
+                <div className="deal-form-field"><label htmlFor="payout-currency">Currency</label><select id="payout-currency" value={payoutRequestForm.currency} onChange={(e) => setPayoutRequestForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
+                <div className="deal-form-field"><label htmlFor="payout-amount">Amount</label><input id="payout-amount" required type="number" min="1" step="0.01" value={payoutRequestForm.amount} onChange={(e) => setPayoutRequestForm((f) => ({ ...f, amount: e.target.value }))} placeholder="100.00" /></div>
+              </div>
+              <div className="deal-form-field"><label htmlFor="payout-note">Note (optional)</label><input id="payout-note" value={payoutRequestForm.note} onChange={(e) => setPayoutRequestForm((f) => ({ ...f, note: e.target.value }))} /></div>
+              <button className="confirm-button deal-submit" type="submit">Request payout</button>
             </form>
           </>
         )}
