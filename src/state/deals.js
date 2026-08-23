@@ -1,3 +1,5 @@
+import { calcFee } from '../utils/fees.js'
+
 const STORAGE_KEY = 'mm_deals'
 
 function readAll() {
@@ -28,7 +30,12 @@ export function createDeal({ itemName, amount, image, buyerContact, sellerName, 
   const deals = readAll()
   let code = genCode()
   while (deals[code]) code = genCode()
-  deals[code] = { code, itemName, amount, image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail, createdAt: new Date().toISOString(), status: 'pending-acceptance' }
+  const { feeRate, fee, buyerTotal, sellerPayout } = calcFee(amount)
+  deals[code] = {
+    code, itemName, amount, image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail,
+    feeRate, fee, buyerTotal, sellerPayout,
+    createdAt: new Date().toISOString(), status: 'pending-acceptance',
+  }
   writeAll(deals)
   return deals[code]
 }

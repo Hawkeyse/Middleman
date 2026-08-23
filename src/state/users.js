@@ -31,8 +31,20 @@ export function upsertUser({ email, name, phone }) {
     warnings: existing?.warnings || [],
     banReason: existing?.banReason || null,
     bannedAt: existing?.bannedAt || null,
+    payoutMethod: existing?.payoutMethod || null, // { type: 'momo'|'bank', network/bankName, accountNumber, accountName }
     createdAt: existing?.createdAt || new Date().toISOString(),
   }
+  writeAll(all)
+  return all[email]
+}
+
+// Where a seller's share of released escrow gets manually paid out to —
+// there's no live Paystack Transfer wired up yet (see api/paystack/), so the
+// team reconciles payouts by hand using what's on file here.
+export function setPayoutMethod(email, method) {
+  const all = readAll()
+  if (!all[email]) return null
+  all[email] = { ...all[email], payoutMethod: method }
   writeAll(all)
   return all[email]
 }

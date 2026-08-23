@@ -81,6 +81,8 @@ function Team() {
     return () => window.removeEventListener('mm-chat-updated', refresh)
   }, [unlocked])
 
+  const totalFees = transactions.filter((t) => t.type === 'deposit' && t.fee != null).reduce((sum, t) => sum + Number(t.fee), 0)
+
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null
   const selectedThread = threads.find((t) => t.email === selectedEmail) || null
@@ -193,6 +195,15 @@ function Team() {
                   <span className={`team-badge large ${selectedUser.status === 'active' ? 'verified' : selectedUser.status === 'warned' ? 'pending' : 'declined'}`}>{selectedUser.status}</span>
                 </div>
 
+                <div className="team-payout-info">
+                  <span className="section-label">PAYOUT METHOD</span>
+                  {selectedUser.payoutMethod ? (
+                    <p>{selectedUser.payoutMethod.type === 'bank' ? selectedUser.payoutMethod.bankName : `${selectedUser.payoutMethod.network} Mobile Money`} — {selectedUser.payoutMethod.accountNumber} ({selectedUser.payoutMethod.accountName || 'no name on file'})</p>
+                  ) : (
+                    <p className="muted">Not added yet — can't sell until they add one.</p>
+                  )}
+                </div>
+
                 {selectedUser.status === 'banned' ? (
                   <div className="team-decision declined"><Ban size={16} /><span>Banned{selectedUser.banReason ? ` — ${selectedUser.banReason}` : ''}{selectedUser.bannedAt ? ` on ${new Date(selectedUser.bannedAt).toLocaleDateString()}` : ''}</span></div>
                 ) : (
@@ -220,12 +231,20 @@ function Team() {
 
       {section === 'transactions' && (
         <div className="team-tx-page">
+          <div className="team-revenue-banner">
+            <div><span>TOTAL FEES COLLECTED</span><strong>₵ {money(totalFees)}</strong></div>
+            <div className="team-revenue-note">Settles into the Middleman Paystack balance automatically. Manually reconcile to <b>Telecel MoMo 233 504 919 423</b>.</div>
+          </div>
           {transactions.length === 0 ? <div className="team-empty">No transactions yet.</div> : (
             <div className="team-tx-list">
               {transactions.map((t) => (
                 <div className="team-tx-row" key={t.id}>
                   <span className={t.type === 'deposit' ? 'activity-icon blue' : 'activity-icon green'}>{t.type === 'deposit' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}</span>
-                  <div><b>{t.itemName}</b><span>{t.dealCode} · {t.buyerEmail} → {t.sellerEmail}</span></div>
+                  <div>
+                    <b>{t.itemName}</b>
+                    <span>{t.dealCode} · {t.buyerEmail} → {t.sellerEmail}</span>
+                    {t.type === 'deposit' && t.fee != null && <span className="team-tx-fee">Received ₵{money(t.amount)} · fee ₵{money(t.fee)} · seller gets ₵{money(t.sellerPayout)}</span>}
+                  </div>
                   <span className="team-tx-date">{new Date(t.at).toLocaleString()}</span>
                   <strong>₵ {money(t.amount)}</strong>
                 </div>

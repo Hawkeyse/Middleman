@@ -46,6 +46,7 @@ function Dashboard() {
   const [pillStyle, setPillStyle] = useState({})
 
   const [gateOpen, setGateOpen] = useState(false)
+  const [payoutGateOpen, setPayoutGateOpen] = useState(false)
   const [supportOpen, setSupportOpen] = useState(false)
   const [newDealOpen, setNewDealOpen] = useState(false)
   const [newDealStep, setNewDealStep] = useState('form')
@@ -98,7 +99,7 @@ function Dashboard() {
     if (!releaseTarget) return
     const updated = releaseDeal(releaseTarget.code, user.email)
     if (!updated) return
-    logTransaction({ type: 'release', dealCode: updated.code, itemName: updated.itemName, amount: updated.amount, buyerEmail: updated.buyerEmail, sellerEmail: updated.sellerEmail, counterparty: updated.sellerName })
+    logTransaction({ type: 'release', dealCode: updated.code, itemName: updated.itemName, amount: updated.sellerPayout ?? updated.amount, buyerEmail: updated.buyerEmail, sellerEmail: updated.sellerEmail, counterparty: updated.sellerName })
     setReleased(true)
     window.setTimeout(closeModal, 2200)
   }
@@ -108,6 +109,14 @@ function Dashboard() {
     if (verification === 'verified') action()
     else setGateOpen(true)
   }
+
+  // Selling requires a payout method on file too — otherwise a release has
+  // nowhere for the team to actually send the seller's money.
+  const hasPayoutMethod = !!accountStatus?.payoutMethod
+  const requireSellerReady = (action) => requireVerified(() => {
+    if (hasPayoutMethod) action()
+    else setPayoutGateOpen(true)
+  })
 
   const closeNewDeal = () => { setNewDealOpen(false); setNewDealStep('form'); setDealForm({ itemName: '', amount: '', buyerContact: '', image: null }); setCreatedDeal(null) }
 
@@ -151,7 +160,7 @@ function Dashboard() {
           : 'All caught up'
 
   const heroAction = () => {
-    if (!activeDeal) { requireVerified(() => setNewDealOpen(true)); return }
+    if (!activeDeal) { requireSellerReady(() => setNewDealOpen(true)); return }
     document.getElementById('current-deal')?.scrollIntoView({ behavior: 'smooth' })
   }
 
@@ -176,7 +185,7 @@ function Dashboard() {
       </aside>
 
       <main className="content">
-        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i></i></button><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button><button className="new-deal" onClick={() => requireVerified(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button></div></header>
+        <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i></i></button><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button><button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button></div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
 
@@ -291,6 +300,18 @@ function Dashboard() {
         <div className="modal-actions">
           <button className="cancel-button" onClick={() => setGateOpen(false)}>Not now</button>
           {verification !== 'pending' && <button className="confirm-button" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}>Verify identity <ShieldCheck size={17} /></button>}
+        </div>
+      </div></div>}
+
+      {payoutGateOpen && <div className="modal-backdrop" onClick={() => setPayoutGateOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={() => setPayoutGateOpen(false)}><X size={18} /></button>
+        <div className="modal-icon gate"><Wallet size={22} /></div>
+        <div className="section-label">PAYOUT METHOD</div>
+        <h2>Add where you get paid first</h2>
+        <p>Before you can sell on Middleman, add a mobile money number or bank account in your profile — that's where we send your money once a buyer releases a deal.</p>
+        <div className="modal-actions">
+          <button className="cancel-button" onClick={() => setPayoutGateOpen(false)}>Not now</button>
+          <button className="confirm-button" onClick={() => navigate('/profile')}>Add payout method <Wallet size={17} /></button>
         </div>
       </div></div>}
 

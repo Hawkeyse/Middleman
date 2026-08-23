@@ -1,27 +1,50 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Camera, Check, Clock, LogOut, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, LogOut, Pencil, ShieldAlert, Smartphone } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
+import { setPayoutMethod } from '../state/users.js'
 import './Profile.css'
 
 const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card', passport: 'International Passport', license: "Driver's License" }
+const momoNetworks = ['MTN', 'Telecel', 'AirtelTigo']
+const emptyPayout = { type: 'momo', network: momoNetworks[0], accountNumber: '', accountName: '', bankName: '' }
 
 function Profile() {
   const navigate = useNavigate()
-  const { user, setUser, verification, verificationMeta, logout, refreshVerification } = useAppState()
+  const { user, setUser, verification, verificationMeta, logout, refreshVerification, accountStatus, refreshAccountStatus } = useAppState()
   const [form, setForm] = useState(user)
   const [saved, setSaved] = useState(false)
+
+  const payoutMethod = accountStatus?.payoutMethod || null
+  const [editingPayout, setEditingPayout] = useState(false)
+  const [payoutForm, setPayoutForm] = useState(payoutMethod || emptyPayout)
+  const [payoutSaved, setPayoutSaved] = useState(false)
 
   // Pick up a team decision made from /team earlier in this browser session.
   useEffect(() => { refreshVerification() }, [refreshVerification])
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const updatePayout = (key) => (e) => setPayoutForm((f) => ({ ...f, [key]: e.target.value }))
 
   const save = (e) => {
     e.preventDefault()
     setUser(form)
     setSaved(true)
     window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  const startEditPayout = () => {
+    setPayoutForm(payoutMethod || emptyPayout)
+    setEditingPayout(true)
+  }
+
+  const savePayout = (e) => {
+    e.preventDefault()
+    setPayoutMethod(user.email, payoutForm)
+    refreshAccountStatus()
+    setEditingPayout(false)
+    setPayoutSaved(true)
+    window.setTimeout(() => setPayoutSaved(false), 1800)
   }
 
   const signOut = () => { logout(); navigate('/') }
@@ -86,6 +109,57 @@ function Profile() {
                 <p>Verify your identity to unlock sending and confirming deals on Middleman.</p>
                 <button className="profile-verify-cta" onClick={() => navigate('/verify', { state: { from: '/profile' } })}><Camera size={15} /> Verify identity</button>
               </>
+            )}
+          </div>
+
+          <div className="profile-card payout-card">
+            <span className="section-label">PAYOUT METHOD</span>
+            <p>Where we send your share when a buyer releases a deal you sold. Payouts are handled manually by the team for now.</p>
+            {payoutSaved && <div className="payout-saved-note"><Check size={13} /> Payout method saved</div>}
+
+            {!editingPayout ? (
+              payoutMethod ? (
+                <div className="payout-current">
+                  <div className="payout-icon">{payoutMethod.type === 'bank' ? <Banknote size={18} /> : <Smartphone size={18} />}</div>
+                  <div>
+                    <b>{payoutMethod.type === 'bank' ? payoutMethod.bankName : `${payoutMethod.network} Mobile Money`}</b>
+                    <span>{payoutMethod.accountNumber}{payoutMethod.accountName ? ` · ${payoutMethod.accountName}` : ''}</span>
+                  </div>
+                  <button type="button" className="payout-edit" onClick={startEditPayout}><Pencil size={13} /> Edit</button>
+                </div>
+              ) : (
+                <button type="button" className="profile-verify-cta" onClick={startEditPayout}><Smartphone size={15} /> Add payout method</button>
+              )
+            ) : (
+              <form className="payout-form" onSubmit={savePayout}>
+                <div className="payout-type-toggle">
+                  <button type="button" className={payoutForm.type === 'momo' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'momo' }))}><Smartphone size={14} /> Mobile Money</button>
+                  <button type="button" className={payoutForm.type === 'bank' ? 'active' : ''} onClick={() => setPayoutForm((f) => ({ ...f, type: 'bank' }))}><Banknote size={14} /> Bank Account</button>
+                </div>
+
+                {payoutForm.type === 'momo' ? (
+                  <>
+                    <div className="profile-field">
+                      <label htmlFor="p-network">Network</label>
+                      <select id="p-network" value={payoutForm.network} onChange={updatePayout('network')}>
+                        {momoNetworks.map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div className="profile-field"><label htmlFor="p-momo-number">Mobile money number</label><input id="p-momo-number" required value={payoutForm.accountNumber} onChange={updatePayout('accountNumber')} placeholder="024 000 0000" /></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="profile-field"><label htmlFor="p-bank">Bank name</label><input id="p-bank" required value={payoutForm.bankName} onChange={updatePayout('bankName')} placeholder="GCB Bank" /></div>
+                    <div className="profile-field"><label htmlFor="p-account-number">Account number</label><input id="p-account-number" required value={payoutForm.accountNumber} onChange={updatePayout('accountNumber')} /></div>
+                  </>
+                )}
+                <div className="profile-field"><label htmlFor="p-account-name">Account holder name</label><input id="p-account-name" required value={payoutForm.accountName} onChange={updatePayout('accountName')} placeholder="Matches your ID" /></div>
+
+                <div className="payout-form-actions">
+                  <button type="button" className="payout-cancel" onClick={() => setEditingPayout(false)}>Cancel</button>
+                  <button className="profile-save" type="submit">Save payout method</button>
+                </div>
+              </form>
             )}
           </div>
         </div>
