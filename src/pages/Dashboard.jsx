@@ -34,6 +34,15 @@ function useCountUp(target, duration = 1200) {
   return value
 }
 
+// Based on the visitor's own device clock (not server time), so it's
+// correct for whatever time zone they're actually in.
+function timeOfDayGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
 const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded', cancelled: 'Cancelled' }
 const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} />, payout: <ArrowUpRight size={16} /> }
 const activityLabel = { deposit: 'Paid into escrow', release: 'Funds released', payout: 'Payout sent' }
@@ -380,7 +389,7 @@ function Dashboard() {
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><Icon name="alarm" size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><Icon name="close" size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Icon name="wallet" size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Icon name="refund" size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Icon name="refund" size={15} /></button>}</div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>{timeOfDayGreeting()}{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Icon name="wallet" size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Icon name="refund" size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Icon name="refund" size={15} /></button>}</div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>

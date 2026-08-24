@@ -304,6 +304,7 @@ function Profile() {
             <p>Your trust score and deal history — download it to show off wherever you like.</p>
             <TrustCard
               name={user.name}
+              username={accountStatus?.username}
               trustScore={trustScoreTarget}
               boughtCount={boughtCount}
               soldCount={soldCount}

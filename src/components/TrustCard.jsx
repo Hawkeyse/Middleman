@@ -18,7 +18,7 @@ function roundRect(ctx, x, y, w, h, r) {
 // Hand-drawn on canvas rather than pulled in via an html-to-image library —
 // the card is simple enough, and this avoids a new dependency just to let
 // someone download a PNG of their own stats.
-function TrustCard({ name, trustScore, boughtCount, soldCount, verified, memberSince }) {
+function TrustCard({ name, username, trustScore, boughtCount, soldCount, verified, memberSince }) {
   const canvasRef = useRef(null)
   const [ready, setReady] = useState(false)
 
@@ -46,6 +46,33 @@ function TrustCard({ name, trustScore, boughtCount, soldCount, verified, memberS
       ctx.fillStyle = glow
       ctx.fillRect(0, 0, W, H)
 
+      // Tiled diagonal watermark — under everything else, faint enough not
+      // to fight the real content but present across the whole card so a
+      // cropped screenshot still carries it. Same idea as a certificate
+      // watermark: makes the card harder to pass off as edited/fake.
+      ctx.save()
+      ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip()
+      ctx.globalAlpha = 0.05
+      ctx.fillStyle = '#ffffff'
+      ctx.font = "700 34px 'Space Grotesk', sans-serif"
+      ctx.textBaseline = 'alphabetic'
+      ctx.translate(W / 2, H / 2)
+      ctx.rotate(-18 * Math.PI / 180)
+      ctx.translate(-W / 2, -H / 2)
+      for (let y = -200; y < H + 300; y += 84) {
+        for (let x = -300; x < W + 300; x += 320) {
+          ctx.fillText('MIDDLEMAN', x, y)
+        }
+      }
+      ctx.restore()
+
+      ctx.save()
+      roundRect(ctx, 0, 0, W, H, 0)
+      ctx.lineWidth = 2
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)'
+      ctx.stroke()
+      ctx.restore()
+
       if (logo.complete && logo.naturalWidth) {
         ctx.save()
         roundRect(ctx, 72, 64, 56, 56, 14)
@@ -70,14 +97,34 @@ function TrustCard({ name, trustScore, boughtCount, soldCount, verified, memberS
         ctx.textAlign = 'left'
       }
 
+      const avatarCx = 72 + 48, avatarCy = 180 + 48
+      const avatarGrad = ctx.createLinearGradient(avatarCx - 48, avatarCy - 48, avatarCx + 48, avatarCy + 48)
+      avatarGrad.addColorStop(0, '#4c7cff')
+      avatarGrad.addColorStop(1, '#7a5cff')
+      ctx.fillStyle = avatarGrad
+      ctx.beginPath()
+      ctx.arc(avatarCx, avatarCy, 48, 0, Math.PI * 2)
+      ctx.fill()
       ctx.fillStyle = '#ffffff'
+      ctx.font = "700 44px 'Space Grotesk', sans-serif"
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText((name || 'M')[0].toUpperCase(), avatarCx, avatarCy + 3)
+      ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
-      ctx.font = "700 68px 'Space Grotesk', sans-serif"
-      ctx.fillText(name || 'Middleman member', 72, 262)
+
+      const nameX = 72 + 116
+      ctx.fillStyle = '#ffffff'
+      ctx.font = "700 60px 'Space Grotesk', sans-serif"
+      ctx.fillText(name || 'Middleman member', nameX, 244)
 
       ctx.fillStyle = '#a9b8ec'
-      ctx.font = "500 22px 'DM Sans', sans-serif"
-      ctx.fillText(memberSince ? `Trusted member since ${memberSince}` : 'Middleman member', 72, 302)
+      ctx.font = "500 21px 'DM Sans', sans-serif"
+      const subtitle = [
+        username ? `@${username}` : null,
+        memberSince ? `Trusted member since ${memberSince}` : 'Middleman member',
+      ].filter(Boolean).join('  ·  ')
+      ctx.fillText(subtitle, nameX, 280)
 
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'
       ctx.lineWidth = 1
@@ -106,6 +153,15 @@ function TrustCard({ name, trustScore, boughtCount, soldCount, verified, memberS
       ctx.font = "500 16px 'DM Sans', sans-serif"
       ctx.fillText('Pay safe. Receive first. · middleman', 72, H - 56)
 
+      if (username) {
+        const host = typeof window !== 'undefined' ? window.location.host : 'middleman'
+        ctx.fillStyle = '#4c7cff'
+        ctx.font = "700 15px 'DM Sans', sans-serif"
+        ctx.textAlign = 'right'
+        ctx.fillText(`Verify at ${host}/u/${username}`, W - 72, H - 56)
+        ctx.textAlign = 'left'
+      }
+
       if (!cancelled) setReady(true)
     }
 
@@ -114,7 +170,7 @@ function TrustCard({ name, trustScore, boughtCount, soldCount, verified, memberS
     else start()
 
     return () => { cancelled = true }
-  }, [name, trustScore, boughtCount, soldCount, verified, memberSince])
+  }, [name, username, trustScore, boughtCount, soldCount, verified, memberSince])
 
   const download = () => {
     const canvas = canvasRef.current
