@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Grid2X2, Image as ImageIcon,
-  LayoutList, Link2, LockKeyhole, Loader2, Plus, Send, ShieldAlert, ShieldCheck, ShoppingBag, Sparkles, Store, Undo2, Wallet, X,
+  ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Image as ImageIcon,
+  LayoutList, Link2, LockKeyhole, Loader2, Plus, Send, ShieldCheck, ShoppingBag, Sparkles, Store,
 } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
@@ -317,10 +318,10 @@ function Dashboard() {
         </div>
         <nav className="main-nav" aria-label="Main navigation">
           <div className="nav-pill" style={pillStyle}></div>
-          {['Overview', 'My deals', 'Wallet', 'Contacts'].map((item, index) => <button key={item} ref={(el) => { navRefs.current[item] = el }} className={activeTab === item ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(item)}>{index === 0 ? <Grid2X2 size={18} /> : index === 1 ? <LayoutList size={18} /> : index === 2 ? <Wallet size={18} /> : <CircleHelp size={18} />}{item}{item === 'My deals' && deals.length > 0 && <span className="nav-count">{deals.length}</span>}</button>)}
+          {['Overview', 'My deals', 'Wallet', 'Contacts'].map((item, index) => <button key={item} ref={(el) => { navRefs.current[item] = el }} className={activeTab === item ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(item)}>{index === 0 ? <Icon name="dashboard" size={18} /> : index === 1 ? <LayoutList size={18} /> : index === 2 ? <Icon name="wallet" size={18} /> : <CircleHelp size={18} />}{item}{item === 'My deals' && deals.length > 0 && <span className="nav-count">{deals.length}</span>}</button>)}
         </nav>
         <div className="sidebar-bottom">
-          {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><ShieldAlert size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
+          {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><Icon name="alarm" size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
           {verification === 'verified' && <div className="trust-note"><ShieldCheck size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
           <button className="nav-item" onClick={() => setSupportOpen(true)}><CircleHelp size={18} />Help center</button>
           <Link className="profile" to="/profile"><span className="avatar avatar-orange">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
@@ -330,18 +331,18 @@ function Dashboard() {
       <main className="content">
         <header className="topbar"><div className="crumbs"><span>Workspace</span><span>/</span><b>{activeTab}</b></div><div className="top-actions"><div className="notif-wrap" ref={notifRef}><button className="icon-button" aria-label="Notifications" onClick={() => setNotifOpen((o) => !o)}><Bell size={19} /><i></i></button>{notifOpen && (
           <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="notif-panel-head"><b>Notifications</b><button onClick={() => setNotifOpen(false)} aria-label="Close"><X size={14} /></button></div>
+            <div className="notif-panel-head"><b>Notifications</b><button onClick={() => setNotifOpen(false)} aria-label="Close"><Icon name="close" size={14} /></button></div>
             <div className="notif-panel-body">
               <h4>Middleman is currently under development</h4>
               <p>Please note that our payment and account registration systems are still under development. We'll notify you once Middleman is fully launched and ready to use.</p>
               <p>Thank you for checking in and for your interest in Middleman!</p>
             </div>
           </div>
-        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><span className="avatar avatar-orange mini">{(user.name || 'A')[0].toUpperCase()}</span></Link><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
+        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><span className="avatar avatar-orange mini">{(user.name || 'A')[0].toUpperCase()}</span></Link><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Icon name="wallet" size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
 
-        {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
+        {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><Icon name="alarm" size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><Icon name="close" size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Wallet size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Undo2 size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Undo2 size={15} /></button>}</div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>Good morning{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Icon name="wallet" size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Icon name="refund" size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Icon name="refund" size={15} /></button>}</div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>
@@ -371,7 +372,7 @@ function Dashboard() {
                   const buyer = d.buyerEmail === user.email
                   const seller = d.sellerEmail === user.email
                   const counterpart = buyer ? (d.sellerName || 'Seller') : (d.buyerName || d.buyerEmail || 'Awaiting buyer')
-                  const icon = d.status === 'released' ? <Check size={16} /> : d.status === 'disputed' ? <Flag size={16} /> : d.status === 'refunded' ? <ArrowUpRight size={16} /> : d.status === 'cancelled' ? <X size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />
+                  const icon = d.status === 'released' ? <Check size={16} /> : d.status === 'disputed' ? <Flag size={16} /> : d.status === 'refunded' ? <ArrowUpRight size={16} /> : d.status === 'cancelled' ? <Icon name="close" size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />
                   const iconColor = d.status === 'released' ? 'green' : d.status === 'disputed' ? 'orange' : d.status === 'refunded' ? 'orange' : d.status === 'cancelled' ? 'grey' : d.status === 'paid' ? 'blue' : 'orange'
                   return (
                     <div className="wallet-row" key={d.code}>
@@ -424,7 +425,7 @@ function Dashboard() {
           {activeDeal.status === 'pending-acceptance' && (
             <div className="deal-action-row">
               <button className="confirm-button" onClick={copyActiveDealLink}>{linkCopied ? <><Check size={17} /> Link copied</> : <><Link2 size={17} /> Copy invite link</>}</button>
-              {activeDeal.sellerEmail === user.email && <button className="dispute-button" onClick={() => openCancel(activeDeal)}><X size={15} /> Cancel deal</button>}
+              {activeDeal.sellerEmail === user.email && <button className="dispute-button" onClick={() => openCancel(activeDeal)}><Icon name="close" size={15} /> Cancel deal</button>}
             </div>
           )}
         </section>
@@ -452,7 +453,7 @@ function Dashboard() {
           <h2>{symbolFor(releaseTarget?.currency)} {money(releaseTarget?.amount)} sent to {releaseTarget?.sellerName || 'the seller'}.</h2>
           <p>Nice one, deal complete. Your trust score just went up.</p>
         </> : <>
-          <button className="modal-close" onClick={closeModal}><X size={18} /></button>
+          <button className="modal-close" onClick={closeModal}><Icon name="close" size={18} /></button>
           <div className="modal-icon"><LockKeyhole size={22} /></div>
           <div className="section-label">DELIVERY CONFIRMATION</div>
           <h2>Has your package arrived safely?</h2>
@@ -462,8 +463,8 @@ function Dashboard() {
       </div></div>}
 
       {gateOpen && <div className="modal-backdrop" onClick={() => setGateOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setGateOpen(false)}><X size={18} /></button>
-        <div className="modal-icon gate"><ShieldAlert size={22} /></div>
+        <button className="modal-close" onClick={() => setGateOpen(false)}><Icon name="close" size={18} /></button>
+        <div className="modal-icon gate"><Icon name="alarm" size={22} /></div>
         <div className="section-label">IDENTITY VERIFICATION</div>
         {verification === 'pending'
           ? <><h2>Your verification is pending</h2><p>Our team is reviewing the documents you submitted. Deals unlock automatically as soon as you're approved — please be patient.</p></>
@@ -477,19 +478,19 @@ function Dashboard() {
       </div></div>}
 
       {payoutGateOpen && <div className="modal-backdrop" onClick={() => setPayoutGateOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setPayoutGateOpen(false)}><X size={18} /></button>
-        <div className="modal-icon gate"><Wallet size={22} /></div>
+        <button className="modal-close" onClick={() => setPayoutGateOpen(false)}><Icon name="close" size={18} /></button>
+        <div className="modal-icon gate"><Icon name="wallet" size={22} /></div>
         <div className="section-label">PAYOUT METHOD</div>
         <h2>Add where you get paid first</h2>
         <p>Before you can sell on Middleman, add a mobile money number or bank account in your profile — that's where we send your money once a buyer releases a deal.</p>
         <div className="modal-actions">
           <button className="cancel-button" onClick={() => setPayoutGateOpen(false)}>Not now</button>
-          <button className="confirm-button" onClick={() => navigate('/profile')}>Add payout method <Wallet size={17} /></button>
+          <button className="confirm-button" onClick={() => navigate('/profile')}>Add payout method <Icon name="wallet" size={17} /></button>
         </div>
       </div></div>}
 
       {disputeOpen && <div className="modal-backdrop" onClick={closeDispute}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={closeDispute}><X size={18} /></button>
+        <button className="modal-close" onClick={closeDispute}><Icon name="close" size={18} /></button>
         <div className="modal-icon gate"><Flag size={22} /></div>
         <div className="section-label">REPORT A PROBLEM</div>
         <h2>What went wrong?</h2>
@@ -504,16 +505,16 @@ function Dashboard() {
       </div></div>}
 
       {cancelTarget && <div className="modal-backdrop" onClick={closeCancel}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={closeCancel}><X size={18} /></button>
-        <div className="modal-icon gate"><X size={22} /></div>
+        <button className="modal-close" onClick={closeCancel}><Icon name="close" size={18} /></button>
+        <div className="modal-icon gate"><Icon name="close" size={22} /></div>
         <div className="section-label">CANCEL DEAL</div>
         <h2>Cancel this invite?</h2>
         <p>{cancelTarget.buyerContact || 'Your buyer'} won't be able to accept <b>{cancelTarget.itemName}</b> anymore — the invite link stops working. This can't be undone.</p>
-        <div className="modal-actions"><button className="cancel-button" onClick={closeCancel}>Keep it</button><button className="dispute-button" onClick={confirmCancel}><X size={15} /> Yes, cancel deal</button></div>
+        <div className="modal-actions"><button className="cancel-button" onClick={closeCancel}>Keep it</button><button className="dispute-button" onClick={confirmCancel}><Icon name="close" size={15} /> Yes, cancel deal</button></div>
       </div></div>}
 
       {newDealOpen && <div className="modal-backdrop" onClick={closeNewDeal}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={closeNewDeal}><X size={18} /></button>
+        <button className="modal-close" onClick={closeNewDeal}><Icon name="close" size={18} /></button>
         {newDealStep === 'form' ? <>
           <div className="modal-icon"><Plus size={22} /></div>
           <div className="section-label">NEW DEAL</div>
@@ -550,12 +551,12 @@ function Dashboard() {
       </div></div>}
 
       {depositOpen && <div className="modal-backdrop" onClick={closeDeposit}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={closeDeposit}><X size={18} /></button>
-        <div className="modal-icon"><Wallet size={22} /></div>
+        <button className="modal-close" onClick={closeDeposit}><Icon name="close" size={18} /></button>
+        <div className="modal-icon"><Icon name="wallet" size={22} /></div>
         <div className="section-label">DEPOSIT FUNDS</div>
         <h2>Add money to your wallet</h2>
         <p>Top up your Middleman wallet — spend it on any deal you accept, whenever you accept it.</p>
-        {depositError && <p className="invite-error"><ShieldAlert size={13} /> {depositError}</p>}
+        {depositError && <p className="invite-error"><Icon name="alarm" size={13} /> {depositError}</p>}
         <form onSubmit={submitDeposit}>
           <div className="deal-form-row">
             <div className="deal-form-field"><label htmlFor="deposit-currency">Currency</label><select id="deposit-currency" value={depositForm.currency} onChange={(e) => setDepositForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
@@ -566,8 +567,8 @@ function Dashboard() {
       </div></div>}
 
       {refundOpen && <div className="modal-backdrop" onClick={() => setRefundOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setRefundOpen(false)}><X size={18} /></button>
-        <div className="modal-icon gate"><Undo2 size={22} /></div>
+        <button className="modal-close" onClick={() => setRefundOpen(false)}><Icon name="close" size={18} /></button>
+        <div className="modal-icon gate"><Icon name="refund" size={22} /></div>
         <div className="section-label">REQUEST REFUND</div>
         {refundSent ? (
           <>
@@ -579,7 +580,7 @@ function Dashboard() {
           <>
             <h2>Pull unused funds back out</h2>
             <p>Refunds are handled manually by the team, not automatically — this just puts in the request.</p>
-            {refundError && <p className="invite-error"><ShieldAlert size={13} /> {refundError}</p>}
+            {refundError && <p className="invite-error"><Icon name="alarm" size={13} /> {refundError}</p>}
             <form onSubmit={submitRefund}>
               <div className="deal-form-row">
                 <div className="deal-form-field"><label htmlFor="refund-currency">Currency</label><select id="refund-currency" value={refundForm.currency} onChange={(e) => setRefundForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>
@@ -593,8 +594,8 @@ function Dashboard() {
       </div></div>}
 
       {payoutRequestOpen && <div className="modal-backdrop" onClick={() => setPayoutRequestOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setPayoutRequestOpen(false)}><X size={18} /></button>
-        <div className="modal-icon gate"><Undo2 size={22} /></div>
+        <button className="modal-close" onClick={() => setPayoutRequestOpen(false)}><Icon name="close" size={18} /></button>
+        <div className="modal-icon gate"><Icon name="refund" size={22} /></div>
         <div className="section-label">REQUEST PAYOUT</div>
         {payoutRequestSent ? (
           <>
@@ -606,7 +607,7 @@ function Dashboard() {
           <>
             <h2>Get your earnings sent out</h2>
             <p>Payouts go to the mobile money/bank details on your profile, handled manually by the team.</p>
-            {payoutRequestError && <p className="invite-error"><ShieldAlert size={13} /> {payoutRequestError}</p>}
+            {payoutRequestError && <p className="invite-error"><Icon name="alarm" size={13} /> {payoutRequestError}</p>}
             <form onSubmit={submitPayoutRequest}>
               <div className="deal-form-row">
                 <div className="deal-form-field"><label htmlFor="payout-currency">Currency</label><select id="payout-currency" value={payoutRequestForm.currency} onChange={(e) => setPayoutRequestForm((f) => ({ ...f, currency: e.target.value }))}>{Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}</select></div>

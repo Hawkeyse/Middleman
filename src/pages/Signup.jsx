@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Loader2, Mail, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, Check, Loader2, Mail, ShieldCheck } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useTransitionNavigate } from '../hooks/useTransitionNavigate.js'
 import { signUp, resendVerification, authErrorMessage } from '../utils/auth.js'
@@ -188,7 +189,7 @@ function Signup() {
                     <span className="auth-username-status">
                       {usernameStatus === 'checking' && <Loader2 size={14} className="spin" />}
                       {usernameStatus === 'available' && <Check size={14} />}
-                      {usernameStatus === 'taken' && <X size={14} />}
+                      {usernameStatus === 'taken' && <Icon name="close" size={14} />}
                     </span>
                   </div>
                   {usernameStatus === 'taken' && <small className="auth-username-hint">Already taken.</small>}

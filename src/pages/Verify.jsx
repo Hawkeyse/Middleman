@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Camera, Car, Clock, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, ShieldAlert, Sun, Upload } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Camera, Car, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, Sun, Upload } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { countries } from '../state/countries.js'
 import './Verify.css'
@@ -166,7 +167,7 @@ function Verify() {
         <VerifyHeader returnTo={returnTo} />
         <div className="verify-card">
           <div className="verify-step verify-center">
-            <div className="verify-status-icon pending"><Clock size={28} /></div>
+            <div className="verify-status-icon pending"><Icon name="pending" size={28} /></div>
             <h2>Your documents are under review</h2>
             <p>Our team is checking what you submitted{verificationMeta?.submittedAt ? ` on ${new Date(verificationMeta.submittedAt).toLocaleDateString()}` : ''}. This usually takes a little while — we'll let you know as soon as it's approved. No need to submit again.</p>
             <Link className="verify-next" to={returnTo}>Back</Link>
@@ -200,7 +201,7 @@ function Verify() {
         {step < 5 && <div className="verify-progress"><i style={{ width: `${(step / 4) * 100}%` }}></i></div>}
 
         {verification === 'declined' && step === 1 && (
-          <div className="decline-banner"><ShieldAlert size={16} /> Your last submission was declined{verificationMeta?.reason ? `: ${verificationMeta.reason}` : '.'} Please check your details and try again.</div>
+          <div className="decline-banner"><Icon name="alarm" size={16} /> Your last submission was declined{verificationMeta?.reason ? `: ${verificationMeta.reason}` : '.'} Please check your details and try again.</div>
         )}
 
         {step === 1 && (
@@ -282,7 +283,7 @@ function Verify() {
             </div>
             {selfie && checking && <div className="check-status checking"><Loader2 size={14} className="spin" /> Checking your photos…</div>}
             {selfie && !checking && checkResult && !checkResult.overallOk && (
-              <div className="check-status issue"><ShieldAlert size={14} /> {checkResult.summary}</div>
+              <div className="check-status issue"><Icon name="alarm" size={14} /> {checkResult.summary}</div>
             )}
             {selfie && !checking && checkError && (
               <div className="check-status note">Automated check unavailable — your submission will go straight to manual review.</div>
@@ -306,7 +307,7 @@ function Verify() {
 
         {step === 5 && (
           <div className="verify-step verify-center">
-            <div className="verify-status-icon pending"><Clock size={28} /></div>
+            <div className="verify-status-icon pending"><Icon name="pending" size={28} /></div>
             <h2>Thanks — hang tight</h2>
             <p>We've received your details, document and selfie. Our team will check them and approve or decline your verification. This can take a little while, so please be patient — you'll be able to start deals as soon as you're approved.</p>
             <Link className="verify-next" to={returnTo}>Back to {returnTo === '/dashboard' ? 'dashboard' : 'profile'}</Link>

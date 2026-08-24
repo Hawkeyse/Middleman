@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ArrowRight, Loader2, LockKeyhole, PackageX, Receipt, ShieldAlert, ShieldCheck, Wallet, X } from 'lucide-react'
+import { ArrowRight, Loader2, LockKeyhole, Receipt, ShieldCheck } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { getDeal, markDealPaid } from '../state/deals.js'
 import { logTransaction } from '../state/transactions.js'
@@ -106,7 +107,7 @@ function Invite() {
     return (
       <div className="invite-page">
         <div className="invite-card">
-          <div className="invite-icon missing"><PackageX size={26} /></div>
+          <div className="invite-icon missing"><Icon name="forbidden" size={26} /></div>
           <h2>This invite isn't available</h2>
           <p>The link may have expired, or it was created in a different browser than this one — Middleman invites are currently device-specific in this preview.</p>
           <Link className="invite-cta" to="/">Go to Middleman</Link>
@@ -119,7 +120,7 @@ function Invite() {
     return (
       <div className="invite-page">
         <div className="invite-card">
-          <div className="invite-icon missing"><PackageX size={26} /></div>
+          <div className="invite-icon missing"><Icon name="forbidden" size={26} /></div>
           <h2>This invite was cancelled</h2>
           <p>{deal.sellerName || 'The seller'} cancelled this deal before it was accepted. Ask them for a new invite if you still want to go ahead.</p>
           <Link className="invite-cta" to="/">Go to Middleman</Link>
@@ -154,7 +155,7 @@ function Invite() {
           <p>This comes out of your Middleman wallet — top up if you need to. We hold it until you confirm the item has arrived, then it's released. The seller receives the full {symbolFor(deal.currency)} {money(deal.amount)} listed price.</p>
         </div>
 
-        {error && <p className="invite-error"><ShieldAlert size={13} /> {error}</p>}
+        {error && <p className="invite-error"><Icon name="alarm" size={13} /> {error}</p>}
         <button className="invite-cta" disabled={accepting} onClick={accept}>{accepting ? <><Loader2 size={16} className="spin" /> Checking your wallet…</> : <>Accept &amp; continue <ArrowRight size={16} /></>}</button>
         <p className="invite-fineprint">{authed ? "You'll verify your identity if you haven't already, then it's covered by your wallet balance." : "You'll create a free Middleman account to accept and track this deal."}</p>
       </div>
@@ -162,8 +163,8 @@ function Invite() {
       {topUpOpen && (
         <div className="modal-backdrop" onClick={() => !payingTopUp && setTopUpOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setTopUpOpen(false)}><X size={18} /></button>
-            <div className="modal-icon"><Wallet size={22} /></div>
+            <button className="modal-close" onClick={() => setTopUpOpen(false)}><Icon name="close" size={18} /></button>
+            <div className="modal-icon"><Icon name="wallet" size={22} /></div>
             <div className="section-label">TOP UP TO ACCEPT</div>
             <h2>Your wallet is short {symbolFor(deal.currency)} {money(shortfall)}</h2>
             <p>This deal costs {symbolFor(deal.currency)} {money(deal.buyerTotal)}. Top up the difference now and we'll accept the deal automatically once it lands.</p>

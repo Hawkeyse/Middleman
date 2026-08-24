@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { X, Headset, Loader2 } from 'lucide-react'
+import { Headset, Loader2 } from 'lucide-react'
+import Icon from './Icon.jsx'
 import ChatThread from './ChatThread.jsx'
 import { getThread, sendMessage, markRead, getUnreadCount, setTyping, getTypingRole } from '../state/chat.js'
 import { requestNotifyPermission } from '../utils/notify.js'
@@ -62,7 +63,7 @@ function SupportChat({ email, name, onClose }) {
       <div className="support-chat-panel" onClick={(e) => e.stopPropagation()}>
         <header className="support-chat-header">
           <div><Headset size={16} /><span>Middleman Support</span></div>
-          <button onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close"><Icon name="close" size={16} /></button>
         </header>
         <p className={`support-chat-sub ${status}`}>{thread?.messages?.length ? statusCopy[status] : 'Ask us anything about your deals — a real person on the team replies here.'}</p>
         <ChatThread

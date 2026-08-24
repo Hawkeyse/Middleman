@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, Loader2, LogOut, Pencil, ShieldAlert, Smartphone } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, usernameError } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
@@ -167,14 +168,14 @@ function Profile() {
 
             {verification === 'pending' && (
               <>
-                <div className="verify-status pending"><Clock size={18} /> Pending review</div>
+                <div className="verify-status pending"><Icon name="pending" size={18} /> Pending review</div>
                 <p>Your document and selfie are with our team. Please be patient — deals unlock as soon as you're approved. You can't submit again while this is pending.</p>
               </>
             )}
 
             {verification === 'declined' && (
               <>
-                <div className="verify-status unverified"><ShieldAlert size={18} /> Declined</div>
+                <div className="verify-status unverified"><Icon name="alarm" size={18} /> Declined</div>
                 <p>{verificationMeta?.reason || 'Your documents did not pass review.'} You can fix the issue and resubmit.</p>
                 <button className="profile-verify-cta" onClick={() => navigate('/verify', { state: { from: '/profile' } })}><Camera size={15} /> Try again</button>
               </>
@@ -182,7 +183,7 @@ function Profile() {
 
             {verification === 'unverified' && (
               <>
-                <div className="verify-status unverified"><ShieldAlert size={18} /> Not verified</div>
+                <div className="verify-status unverified"><Icon name="alarm" size={18} /> Not verified</div>
                 <p>Verify your identity to unlock sending and confirming deals on Middleman.</p>
                 <button className="profile-verify-cta" onClick={() => navigate('/verify', { state: { from: '/profile' } })}><Camera size={15} /> Verify identity</button>
               </>

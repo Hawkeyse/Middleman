@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Clock, Flag, Headset, IdCard,
-  Lock, Receipt, ShieldAlert, TriangleAlert, Undo2, Users as UsersIcon, X, ZoomIn,
+  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Flag, Headset, IdCard,
+  Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
+import Icon from '../components/Icon.jsx'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { teamFetch } from '../utils/teamFetch.js'
@@ -191,7 +192,7 @@ function Team() {
           <button className={section === 'verifications' ? 'active' : ''} onClick={() => setSection('verifications')}><IdCard size={14} /> Verifications{records.filter((r) => r.status === 'pending').length > 0 && <i>{records.filter((r) => r.status === 'pending').length}</i>}</button>
           <button className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><UsersIcon size={14} /> Users</button>
           <button className={section === 'disputes' ? 'active' : ''} onClick={() => setSection('disputes')}><Flag size={14} /> Disputes{openDisputeCount > 0 && <i>{openDisputeCount}</i>}</button>
-          <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Undo2 size={14} /> Withdrawals{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
+          <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Icon name="refund" size={14} /> Withdrawals{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
           <button className={section === 'transactions' ? 'active' : ''} onClick={() => setSection('transactions')}><Receipt size={14} /> Transactions</button>
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
         </div>
@@ -237,12 +238,12 @@ function Team() {
                     <input placeholder="Reason if declining (optional)" value={reasonDraft} onChange={(e) => setReasonDraft(e.target.value)} />
                     <div>
                       <button className="team-approve" onClick={() => approve(selected.id)}><Check size={15} /> Approve</button>
-                      <button className="team-decline" onClick={() => decline(selected.id)}><X size={15} /> Decline</button>
+                      <button className="team-decline" onClick={() => decline(selected.id)}><Icon name="close" size={15} /> Decline</button>
                     </div>
                   </div>
                 ) : (
                   <div className={`team-decision ${selected.status}`}>
-                    {selected.status === 'verified' ? <BadgeCheck size={16} /> : <ShieldAlert size={16} />}
+                    {selected.status === 'verified' ? <BadgeCheck size={16} /> : <Icon name="alarm" size={16} />}
                     <span>{selected.status === 'verified' ? 'Approved' : `Declined${selected.reason ? ` — ${selected.reason}` : ''}`}{selected.decidedAt ? ` on ${new Date(selected.decidedAt).toLocaleDateString()}` : ''}</span>
                   </div>
                 )}
@@ -345,12 +346,12 @@ function Team() {
                   <div className="team-actions">
                     <div>
                       <button className="team-approve" onClick={() => resolve('release')}><Check size={15} /> Release to seller</button>
-                      <button className="team-decline" onClick={() => resolve('refund')}><X size={15} /> Refund buyer</button>
+                      <button className="team-decline" onClick={() => resolve('refund')}><Icon name="close" size={15} /> Refund buyer</button>
                     </div>
                   </div>
                 ) : (
                   <div className={`team-decision ${selectedDeal.status === 'released' ? 'verified' : 'declined'}`}>
-                    {selectedDeal.status === 'released' ? <BadgeCheck size={16} /> : <ShieldAlert size={16} />}
+                    {selectedDeal.status === 'released' ? <BadgeCheck size={16} /> : <Icon name="alarm" size={16} />}
                     <span>{selectedDeal.status === 'released' ? 'Resolved — released to seller' : 'Resolved — refunded to buyer'}{selectedDeal.resolvedAt ? ` on ${new Date(selectedDeal.resolvedAt).toLocaleDateString()}` : ''}</span>
                   </div>
                 )}
@@ -366,7 +367,7 @@ function Team() {
             <div className="team-tx-list">
               {withdrawals.map((r) => (
                 <div className="team-tx-row" key={r.id}>
-                  <span className="activity-icon orange"><Undo2 size={16} /></span>
+                  <span className="activity-icon orange"><Icon name="refund" size={16} /></span>
                   <div>
                     <b>{symbolFor(r.currency)} {money(r.amount)} <span className="team-tx-fee">{r.kind === 'payout' ? 'seller payout' : 'buyer refund'}</span></b>
                     <span>{r.email}{r.note ? ` · ${r.note}` : ''}</span>
@@ -417,7 +418,7 @@ function Team() {
               return (
                 <button key={t.email} className={t.email === selectedEmail ? 'team-row active' : 'team-row'} onClick={() => openThread(t.email)}>
                   <div><b>{t.name || t.email}</b><span>{t.messages[t.messages.length - 1]?.text.slice(0, 40) || ''}</span></div>
-                  {unread > 0 ? <i className="team-unread">{unread}</i> : t.status === 'waiting' ? <span className="team-badge pending">waiting</span> : t.status === 'closed' ? <Clock size={13} /> : <span className="team-badge verified">active</span>}
+                  {unread > 0 ? <i className="team-unread">{unread}</i> : t.status === 'waiting' ? <span className="team-badge pending">waiting</span> : t.status === 'closed' ? <Icon name="pending" size={13} /> : <span className="team-badge verified">active</span>}
                 </button>
               )
             })}
@@ -428,7 +429,7 @@ function Team() {
                 <div className="team-detail-head">
                   <button className="team-detail-back chat-back" onClick={() => setSelectedEmail(null)}><ArrowLeft size={14} /></button>
                   <div><h2>{selectedThread.name || selectedThread.email}</h2><span>{selectedThread.email}</span></div>
-                  {selectedThread.status === 'active' && <button className="chat-close-button" onClick={() => closeChat(selectedThread.email)}><X size={13} /> <span>Close ticket</span></button>}
+                  {selectedThread.status === 'active' && <button className="chat-close-button" onClick={() => closeChat(selectedThread.email)}><Icon name="close" size={13} /> <span>Close ticket</span></button>}
                 </div>
                 <ChatThread
                   messages={selectedThread.messages}
@@ -451,7 +452,7 @@ function Team() {
 
       {lightbox && (
         <div className="lightbox-backdrop" onClick={() => setLightbox(null)}>
-          <button className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Close"><X size={20} /></button>
+          <button className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Close"><Icon name="close" size={20} /></button>
           <img src={lightbox} alt="Full size" onClick={(e) => e.stopPropagation()} />
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Paperclip, Send, X } from 'lucide-react'
+import { Paperclip, Send } from 'lucide-react'
+import Icon from './Icon.jsx'
 import './ChatThread.css'
 
 const MAX_IMAGE_DIM = 1200
@@ -90,7 +91,7 @@ function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a messageâ
             {imageDraft && (
               <div className="chat-image-draft">
                 <img src={imageDraft} alt="Selected attachment" />
-                <button type="button" onClick={() => setImageDraft(null)} aria-label="Remove attachment"><X size={12} /></button>
+                <button type="button" onClick={() => setImageDraft(null)} aria-label="Remove attachment"><Icon name="close" size={12} /></button>
               </div>
             )}
             <input value={text} onChange={handleTextChange} placeholder={placeholder} />
@@ -100,7 +101,7 @@ function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a messageâ
       )}
       {zoomImage && (
         <div className="chat-lightbox" onClick={() => setZoomImage(null)}>
-          <button className="chat-lightbox-close" onClick={() => setZoomImage(null)} aria-label="Close"><X size={18} /></button>
+          <button className="chat-lightbox-close" onClick={() => setZoomImage(null)} aria-label="Close"><Icon name="close" size={18} /></button>
           <img src={zoomImage} alt="Full size attachment" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
