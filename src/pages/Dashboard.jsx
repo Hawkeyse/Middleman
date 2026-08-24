@@ -322,7 +322,7 @@ function Dashboard() {
         <div className="sidebar-bottom">
           {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><ShieldAlert size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
           {verification === 'verified' && <div className="trust-note"><ShieldCheck size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
-          <button className="nav-item"><CircleHelp size={18} />Help center</button>
+          <button className="nav-item" onClick={() => setSupportOpen(true)}><CircleHelp size={18} />Help center</button>
           <Link className="profile" to="/profile"><span className="avatar avatar-orange">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
         </div>
       </aside>
@@ -337,7 +337,7 @@ function Dashboard() {
               <p>Thank you for checking in and for your interest in Middleman!</p>
             </div>
           </div>
-        )}</div><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> Support{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
+        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><span className="avatar avatar-orange mini">{(user.name || 'A')[0].toUpperCase()}</span></Link><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Wallet size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><ShieldAlert size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><X size={14} /></button></div>}
 
