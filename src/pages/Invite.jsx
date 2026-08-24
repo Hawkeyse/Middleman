@@ -5,7 +5,7 @@ import { useAppState } from '../state/AppState.jsx'
 import { getDeal, markDealPaid } from '../state/deals.js'
 import { logTransaction } from '../state/transactions.js'
 import { getWalletBalance, logWalletEntry } from '../state/wallet.js'
-import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack.js'
+import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
 import { money, symbolFor } from '../utils/currencies.js'
 import './Invite.css'
 
@@ -53,11 +53,11 @@ function Invite() {
     setError('')
     setPayingTopUp(true)
     try {
-      const reference = await payWithPaystack({
+      const { provider, reference } = await payWithProvider({
         email: user.email, amount: shortfall, currency: deal.currency, dealCode: `WALLET-${code}`,
-        onReference: (ref) => localStorage.setItem(pendingRefKey(code), ref),
+        onReference: (ref) => localStorage.setItem(pendingRefKey(code), JSON.stringify(ref)),
       })
-      const verified = await verifyPaystackPayment(reference)
+      const verified = await verifyProviderPayment(provider, reference)
       if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
       logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
       localStorage.removeItem(pendingRefKey(code))
@@ -70,17 +70,21 @@ function Invite() {
     }
   }
 
-  // Recovers a top-up that actually succeeded on Paystack's side but never
+  // Recovers a top-up that actually succeeded on the provider's side but never
   // got credited locally (tab closed mid-flow, etc.) — same idea as the
   // deposit recovery this replaced, just scoped to the wallet top-up now.
-  const pendingRef = deal ? localStorage.getItem(pendingRefKey(code)) : null
+  // The saved value carries which provider (Paystack/Flutterwave) it belongs
+  // to, since verifying needs to hit the right one.
+  const pendingRefRaw = deal ? localStorage.getItem(pendingRefKey(code)) : null
+  let pendingRef = null
+  try { pendingRef = pendingRefRaw ? JSON.parse(pendingRefRaw) : null } catch { pendingRef = null }
   const checkPendingTopUp = async () => {
     if (!pendingRef) return
     setError('')
     setCheckNote('')
     setChecking(true)
     try {
-      const verified = await verifyPaystackPayment(pendingRef)
+      const verified = await verifyProviderPayment(pendingRef.provider, pendingRef.reference)
       if (verified.status === 'success') {
         logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
         localStorage.removeItem(pendingRefKey(code))

@@ -10,7 +10,7 @@ import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
 import { getWalletBalance, logWalletEntry, requestRefund } from '../state/wallet.js'
 import { requestPayout } from '../state/payoutRequests.js'
-import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack.js'
+import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
 import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
 import { calcTrustScore } from '../utils/trustScore.js'
 import SupportChat from '../components/SupportChat.jsx'
@@ -195,11 +195,11 @@ function Dashboard() {
     setDepositError('')
     setDepositing(true)
     try {
-      const reference = await payWithPaystack({
+      const { provider, reference } = await payWithProvider({
         email: user.email, amount: Number(depositForm.amount), currency: depositForm.currency,
         dealCode: `WALLET-${Date.now().toString(36).toUpperCase()}`,
       })
-      const verified = await verifyPaystackPayment(reference)
+      const verified = await verifyProviderPayment(provider, reference)
       if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
       logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
       setDepositOpen(false)
