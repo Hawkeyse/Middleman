@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Image as ImageIcon,
-  LayoutList, Link2, LockKeyhole, Loader2, Plus, Send, ShieldCheck, ShoppingBag, Sparkles, Store,
+  Link2, LockKeyhole, Loader2, Plus, Send, ShieldCheck, Sparkles,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
@@ -351,17 +351,17 @@ function Dashboard() {
         <button className="brand-lockup" onClick={() => navigate('/dashboard')}><div className="brand-mark"><img src="/middleman-logo.png" alt="Middleman" /></div><div><strong>middleman</strong><span>Pay safe. Receive first</span></div></button>
         <div className="workspace-switcher"><span className="avatar avatar-blue">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name ? `${user.name.split(' ')[0]}'s space` : 'Your space'}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
         <div className="mode-toggle">
-          <button className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}><Store size={14} /> Selling</button>
-          <button className={mode === 'buyer' ? 'active' : ''} onClick={() => setMode('buyer')}><ShoppingBag size={14} /> Buying</button>
+          <button className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}><Icon name="selling" size={14} /> Selling</button>
+          <button className={mode === 'buyer' ? 'active' : ''} onClick={() => setMode('buyer')}><Icon name="buying" size={14} /> Buying</button>
         </div>
         <nav className="main-nav" aria-label="Main navigation">
           <div className="nav-pill" style={pillStyle}></div>
-          {['Overview', 'My deals', 'Wallet', 'Contacts'].map((item, index) => <button key={item} ref={(el) => { navRefs.current[item] = el }} className={activeTab === item ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(item)}>{index === 0 ? <Icon name="dashboard" size={18} /> : index === 1 ? <LayoutList size={18} /> : index === 2 ? <Icon name="wallet" size={18} /> : <CircleHelp size={18} />}{item}{item === 'My deals' && deals.length > 0 && <span className="nav-count">{deals.length}</span>}</button>)}
+          {['Overview', 'My deals', 'Wallet', 'Contacts'].map((item, index) => <button key={item} ref={(el) => { navRefs.current[item] = el }} className={activeTab === item ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(item)}>{index === 0 ? <Icon name="dashboard" size={18} /> : index === 1 ? <Icon name="agreement" size={18} /> : index === 2 ? <Icon name="wallet" size={18} /> : <CircleHelp size={18} />}{item}{item === 'My deals' && deals.length > 0 && <span className="nav-count">{deals.length}</span>}</button>)}
         </nav>
         <div className="sidebar-bottom">
-          {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><Icon name="alarm" size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
-          {verification === 'verified' && <div className="trust-note"><ShieldCheck size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
-          <button className="nav-item" onClick={() => setSupportOpen(true)}><CircleHelp size={18} />Help center</button>
+          {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><Icon name={verification === 'pending' ? 'pending' : 'alarm'} size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
+          {verification === 'verified' && <div className="trust-note"><Icon name="verified" size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
+          <button className="nav-item" onClick={() => setSupportOpen(true)}><Icon name="support" size={18} />Help center</button>
           <Link className="profile" to="/profile"><span className="avatar avatar-orange">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
         </div>
       </aside>
@@ -376,7 +376,7 @@ function Dashboard() {
               <p>Thank you for checking in and for your interest in Middleman!</p>
             </div>
           </div>
-        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><span className="avatar avatar-orange mini">{(user.name || 'A')[0].toUpperCase()}</span></Link><button className="support-button" onClick={() => setSupportOpen(true)}><CircleHelp size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Icon name="wallet" size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
+        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><Icon name="profile" size={19} /></Link><button className="support-button" onClick={() => setSupportOpen(true)}><Icon name="support" size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Icon name="wallet" size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><Icon name="alarm" size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><Icon name="close" size={14} /></button></div>}
 
@@ -437,7 +437,7 @@ function Dashboard() {
         <section className="current-deal animate-in" id="current-deal" style={{ animationDelay: '190ms' }}>
           <div className="section-heading"><div><div className="section-label">{activeDeal.status === 'released' ? 'COMPLETED DEAL' : activeDeal.status === 'disputed' ? 'DISPUTED DEAL' : activeDeal.status === 'refunded' ? 'REFUNDED DEAL' : 'LIVE DEAL'}</div><h2>{activeDeal.itemName}</h2><p>{statusLabel[activeDeal.status]}</p></div><button className="more-button"><span></span><span></span><span></span></button></div>
           <div className="deal-body">
-            <div className="deal-person buyer"><div className="person-avatar">{(iAmBuyer ? (activeDeal.sellerName || 'S') : (activeDeal.buyerName || activeDeal.buyerEmail || 'B'))[0].toUpperCase()}</div><div><small>{iAmBuyer ? 'YOU ARE BUYING FROM' : 'YOU ARE SELLING TO'}</small><b>{iAmBuyer ? (activeDeal.sellerName || 'Seller') : (activeDeal.buyerName || activeDeal.buyerEmail || 'Awaiting buyer')}</b>{iAmBuyer && <span>Seller <ShieldCheck size={13} /></span>}</div></div>
+            <div className="deal-person buyer"><div className="person-avatar">{(iAmBuyer ? (activeDeal.sellerName || 'S') : (activeDeal.buyerName || activeDeal.buyerEmail || 'B'))[0].toUpperCase()}</div><div><small>{iAmBuyer ? 'YOU ARE BUYING FROM' : 'YOU ARE SELLING TO'}</small><b>{iAmBuyer ? (activeDeal.sellerName || 'Seller') : (activeDeal.buyerName || activeDeal.buyerEmail || 'Awaiting buyer')}</b>{iAmBuyer && <span>Seller <Icon name="verify" size={13} /></span>}</div></div>
             <div className="deal-amount"><small>AMOUNT HELD</small><strong>{symbolFor(activeDeal.currency)} {money(dealAmount)}</strong><button onClick={copyId}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> {activeDeal.code}</>}</button></div>
             <div className="deal-person seller"><div className="person-avatar orange">{(iAmBuyer ? user.name : (activeDeal.buyerName || activeDeal.buyerEmail || 'A'))?.[0]?.toUpperCase() || 'A'}</div><div><small>{iAmBuyer ? 'ITEM SHIPS TO' : 'PAYMENT RELEASES TO'}</small><b>{iAmBuyer ? (user.name || 'You') : 'You'}</b></div></div>
           </div>

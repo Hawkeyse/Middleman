@@ -7,6 +7,13 @@ const SIZES = {
   pending: '/icons/pending.png',
   refund: '/icons/refund.png',
   wallet: '/icons/wallet.png',
+  agreement: '/icons/agreement.png',
+  support: '/icons/support.png',
+  verified: '/icons/verified.png',
+  verify: '/icons/verify.png',
+  profile: '/icons/profile.png',
+  buying: '/icons/buying.png',
+  selling: '/icons/selling.png',
 }
 
 function Icon({ name, size = 18, className = '' }) {

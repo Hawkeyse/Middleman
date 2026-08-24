@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Camera, Car, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, Sun, Upload } from 'lucide-react'
+import { ArrowLeft, Camera, Car, CreditCard, Fingerprint, IdCard, Loader2, RefreshCw, Sun, Upload } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { countries } from '../state/countries.js'
@@ -183,7 +183,7 @@ function Verify() {
         <VerifyHeader returnTo={returnTo} />
         <div className="verify-card">
           <div className="verify-step verify-center">
-            <div className="verify-status-icon verified"><BadgeCheck size={28} /></div>
+            <div className="verify-status-icon verified"><Icon name="verified" size={28} /></div>
             <h2>You're already verified</h2>
             <p>No need to do this again — your identity is confirmed.</p>
             <Link className="verify-next" to={returnTo}>Back</Link>

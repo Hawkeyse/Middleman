@@ -233,7 +233,7 @@ function Team() {
                   </div>
                 ) : (
                   <div className={`team-decision ${selected.status}`}>
-                    {selected.status === 'verified' ? <BadgeCheck size={16} /> : <Icon name="alarm" size={16} />}
+                    {selected.status === 'verified' ? <Icon name="verified" size={16} /> : <Icon name="alarm" size={16} />}
                     <span>{selected.status === 'verified' ? 'Approved' : `Declined${selected.reason ? ` — ${selected.reason}` : ''}`}{selected.decidedAt ? ` on ${new Date(selected.decidedAt).toLocaleDateString()}` : ''}</span>
                   </div>
                 )}

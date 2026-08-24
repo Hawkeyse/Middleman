@@ -10,7 +10,6 @@
 .notif-wrap{position:relative}
 .notif-panel{position:absolute;top:calc(100% + 10px);left:0;z-index:15;width:300px;max-width:calc(100vw - 32px);border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 20px 45px #2739661f;overflow:hidden;animation:fadeUp .2s ease-out both}
 .mobile-profile-link{display:none}
-.mobile-profile-link .avatar.mini{width:26px;height:26px;font-size:11px}
 .notif-panel-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line)}
 .notif-panel-head b{color:var(--ink);font-size:12.5px}
 .notif-panel-head button{display:grid;place-items:center;padding:3px;border:0;background:transparent;color:#96a0b3}

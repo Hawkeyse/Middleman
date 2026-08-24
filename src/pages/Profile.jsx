@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
+import { ArrowLeft, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
@@ -166,7 +166,7 @@ function Profile() {
 
             {verification === 'verified' && (
               <>
-                <div className="verify-status verified"><BadgeCheck size={18} /> Verified</div>
+                <div className="verify-status verified"><Icon name="verified" size={18} /> Verified</div>
                 <p>You're all set — you can start and confirm deals freely.</p>
                 <div className="verify-meta">
                   <div><small>DOCUMENT</small><b>{docLabels[verificationMeta?.docType] || '—'}</b></div>
