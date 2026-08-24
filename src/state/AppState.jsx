@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { submitVerification, getVerificationFor } from './verifications.js'
-import { upsertUser, getUser } from './users.js'
+import { upsertUser, getUser, ensureUsername } from './users.js'
 import { watchAuth, checkVerified, signOutUser } from '../utils/auth.js'
 
 const AppStateContext = createContext(null)
@@ -110,6 +110,23 @@ export function AppStateProvider({ children }) {
     const id = window.setInterval(refreshAccountStatus, 3000)
     return () => window.clearInterval(id)
   }, [refreshAccountStatus, authed])
+
+  // Backfills a username for anyone who doesn't have one yet — old accounts
+  // from before usernames existed, or a signup whose own claim lost a naming
+  // race. Gated on `authed` (not just user.email) so it only ever runs once
+  // email verification has gone through, well after Signup's own claim
+  // attempt has already settled — no race between the two.
+  const usernameEnsuredFor = useRef(new Set())
+  useEffect(() => {
+    if (!authed || !user.email) return
+    if (usernameEnsuredFor.current.has(user.email)) return
+    usernameEnsuredFor.current.add(user.email)
+    getUser(user.email).then((fresh) => {
+      if (fresh && !fresh.username) {
+        ensureUsername(user.email, user.name || fresh.name).then(() => refreshAccountStatus())
+      }
+    })
+  }, [authed, user.email, user.name, refreshAccountStatus])
 
   const setUser = (details) => {
     setUserState((prev) => {

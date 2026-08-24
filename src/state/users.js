@@ -144,6 +144,37 @@ export async function claimUsername(email, name, rawUsername) {
   return u
 }
 
+function baseUsernameFromName(name, email) {
+  const source = (name || '').trim() || (email || '').split('@')[0] || 'user'
+  let base = source.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  if (base.length < 3) base = `${base}user`.slice(0, Math.max(3, base.length + 4))
+  return base.slice(0, 15)
+}
+
+// Silently gives an account a username if it doesn't have one yet — covers
+// accounts created before this feature existed, and anyone whose signup-time
+// claim lost a naming race. Tries the name-derived handle first, then
+// numbered variants; each attempt is a real claimUsername transaction, so
+// there's no separate availability check to race against.
+export async function ensureUsername(email, name) {
+  const existing = await getUser(email)
+  if (existing?.username) return existing.username
+
+  const base = baseUsernameFromName(name, email)
+  const tries = [base]
+  for (let i = 0; i < 10; i++) tries.push(`${base}${Math.floor(2 + Math.random() * 97)}`)
+
+  for (const candidate of tries) {
+    if (usernameError(candidate)) continue
+    try {
+      return await claimUsername(email, name, candidate)
+    } catch {
+      // taken, or lost a race — fall through to the next candidate
+    }
+  }
+  return null
+}
+
 // Prefix search over the public username directory — powers "invite by
 // username" search. Returns [] for anything too short to be worth querying.
 export async function searchUsernames(prefix, max = 8) {
