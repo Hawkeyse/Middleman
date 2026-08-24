@@ -10,5 +10,14 @@
 .terms-card h1{margin:0 0 6px;color:var(--ink);font:700 clamp(26px,3.4vw,34px) 'Space Grotesk',sans-serif;letter-spacing:-1px}
 .terms-updated{margin:0 0 28px;color:#9ca7ba;font-size:12px}
 .terms-card>p{margin:0 0 20px;color:#586380;font-size:13.5px;line-height:1.75}
-.terms-card h2{margin:34px 0 10px;color:var(--ink);font:700 16.5px 'Space Grotesk',sans-serif;letter-spacing:-.3px}
+.terms-card h2{margin:34px 0 10px;color:var(--ink);font:700 16.5px 'Space Grotesk',sans-serif;letter-spacing:-.3px;scroll-margin-top:24px}
 .terms-card h2:first-of-type{margin-top:8px}
+
+.terms-toc{margin:8px 0 30px;padding:18px 20px;border-radius:12px;background:#fbfcff;border:1px solid var(--line)}
+.terms-toc .section-label{display:block;margin-bottom:12px;color:#8994ab;font-size:10px;font-weight:700;letter-spacing:1.4px}
+.terms-toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;counter-reset:toc}
+.terms-toc li{counter-increment:toc;font-size:12.5px}
+.terms-toc li::before{content:counter(toc) '. ';color:#a3adbf;font-weight:700}
+.terms-toc a{color:#4c5c8a;text-decoration:none}
+.terms-toc a:hover{color:var(--blue);text-decoration:underline}
+@media(max-width:560px){.terms-toc ol{grid-template-columns:1fr}}
