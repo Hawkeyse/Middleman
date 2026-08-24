@@ -70,6 +70,18 @@ export function releaseDeal(code, buyerEmail) {
   return deals[code]
 }
 
+// Only the seller who created the deal can cancel it, and only before a
+// buyer has paid — once money's in escrow this has to go through a dispute
+// instead, since cancelling would need to unwind a real charge/wallet debit.
+export function cancelDeal(code, sellerEmail) {
+  const deals = readAll()
+  const deal = deals[code]
+  if (!deal || deal.status !== 'pending-acceptance' || deal.sellerEmail !== sellerEmail) return null
+  deals[code] = { ...deal, status: 'cancelled', cancelledAt: new Date().toISOString() }
+  writeAll(deals)
+  return deals[code]
+}
+
 export function listAllDeals() {
   return Object.values(readAll()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }

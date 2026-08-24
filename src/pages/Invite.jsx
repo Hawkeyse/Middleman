@@ -111,6 +111,19 @@ function Invite() {
     )
   }
 
+  if (deal.status === 'cancelled') {
+    return (
+      <div className="invite-page">
+        <div className="invite-card">
+          <div className="invite-icon missing"><PackageX size={26} /></div>
+          <h2>This invite was cancelled</h2>
+          <p>{deal.sellerName || 'The seller'} cancelled this deal before it was accepted. Ask them for a new invite if you still want to go ahead.</p>
+          <Link className="invite-cta" to="/">Go to Middleman</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="invite-page">
       <div className="invite-card">

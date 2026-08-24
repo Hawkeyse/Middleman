@@ -8,6 +8,7 @@ button { font: inherit; cursor: pointer; }
 .activity-icon.green{color:var(--green);background:#e5f8f0}
 .activity-icon.blue{color:var(--blue);background:#ebf0ff}
 .activity-icon.orange{color:var(--orange);background:#fff0eb}
+.activity-icon.grey{color:var(--muted);background:#eef1f6}
 
 .animate-in{animation:fadeUp .7s cubic-bezier(.16,1,.3,1) both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}

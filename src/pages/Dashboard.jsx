@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
-import { createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
+import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { logTransaction, listTransactionsFor } from '../state/transactions.js'
 import { getWalletBalance, logWalletEntry, requestRefund } from '../state/wallet.js'
 import { requestPayout } from '../state/payoutRequests.js'
@@ -33,7 +33,7 @@ function useCountUp(target, duration = 1200) {
   return value
 }
 
-const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded' }
+const statusLabel = { 'pending-acceptance': 'Awaiting payment', paid: 'In escrow', released: 'Completed', disputed: 'Under review', refunded: 'Refunded', cancelled: 'Cancelled' }
 const activityIcon = { deposit: <ArrowDownLeft size={16} />, release: <ArrowUpRight size={16} />, payout: <ArrowUpRight size={16} /> }
 const activityLabel = { deposit: 'Paid into escrow', release: 'Funds released', payout: 'Payout sent' }
 
@@ -61,6 +61,7 @@ function Dashboard() {
   const [disputeOpen, setDisputeOpen] = useState(false)
   const [disputeTarget, setDisputeTarget] = useState(null)
   const [disputeReason, setDisputeReason] = useState('')
+  const [cancelTarget, setCancelTarget] = useState(null)
 
   // Buyer vs seller is a view/mode toggle, not a separate account — anyone
   // can do both. Selling shows the existing create-a-deal flow; buying shows
@@ -168,6 +169,14 @@ function Dashboard() {
     logTransaction({ type: 'release', dealCode: updated.code, itemName: updated.itemName, amount: updated.sellerPayout ?? updated.amount, buyerEmail: updated.buyerEmail, sellerEmail: updated.sellerEmail, counterparty: updated.sellerName })
     setReleased(true)
     window.setTimeout(closeModal, 2200)
+  }
+
+  const openCancel = (deal) => setCancelTarget(deal)
+  const closeCancel = () => setCancelTarget(null)
+  const confirmCancel = () => {
+    if (!cancelTarget) return
+    cancelDeal(cancelTarget.code, user.email)
+    closeCancel()
   }
 
   const openDispute = (deal) => { setDisputeTarget(deal); setDisputeReason(''); setDisputeOpen(true) }
@@ -360,9 +369,10 @@ function Dashboard() {
               <div className="wallet-list">
                 {deals.map((d) => {
                   const buyer = d.buyerEmail === user.email
+                  const seller = d.sellerEmail === user.email
                   const counterpart = buyer ? (d.sellerName || 'Seller') : (d.buyerName || d.buyerEmail || 'Awaiting buyer')
-                  const icon = d.status === 'released' ? <Check size={16} /> : d.status === 'disputed' ? <Flag size={16} /> : d.status === 'refunded' ? <ArrowUpRight size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />
-                  const iconColor = d.status === 'released' ? 'green' : d.status === 'disputed' ? 'orange' : d.status === 'refunded' ? 'orange' : d.status === 'paid' ? 'blue' : 'orange'
+                  const icon = d.status === 'released' ? <Check size={16} /> : d.status === 'disputed' ? <Flag size={16} /> : d.status === 'refunded' ? <ArrowUpRight size={16} /> : d.status === 'cancelled' ? <X size={16} /> : d.status === 'paid' ? <LockKeyhole size={16} /> : <Send size={16} />
+                  const iconColor = d.status === 'released' ? 'green' : d.status === 'disputed' ? 'orange' : d.status === 'refunded' ? 'orange' : d.status === 'cancelled' ? 'grey' : d.status === 'paid' ? 'blue' : 'orange'
                   return (
                     <div className="wallet-row" key={d.code}>
                       <span className={`activity-icon ${iconColor}`}>{icon}</span>
@@ -370,6 +380,7 @@ function Dashboard() {
                       <span className={`deal-status-badge ${d.status}`}>{statusLabel[d.status]}</span>
                       {buyer && d.status === 'paid' && <button className="deal-row-action" onClick={() => requireVerified(() => openRelease(d))}>Confirm</button>}
                       {buyer && d.status === 'paid' && <button className="deal-row-action ghost" onClick={() => openDispute(d)}>Report</button>}
+                      {seller && d.status === 'pending-acceptance' && <button className="deal-row-action ghost" onClick={() => openCancel(d)}>Cancel</button>}
                     </div>
                   )
                 })}
@@ -410,7 +421,12 @@ function Dashboard() {
             </div>
           )}
           {!iAmBuyer && activeDeal.status === 'paid' && <div className="deal-waiting-note"><LockKeyhole size={14} /> Waiting for {activeDeal.buyerName || 'your buyer'} to confirm delivery.</div>}
-          {activeDeal.status === 'pending-acceptance' && <button className="confirm-button" onClick={copyActiveDealLink}>{linkCopied ? <><Check size={17} /> Link copied</> : <><Link2 size={17} /> Copy invite link</>}</button>}
+          {activeDeal.status === 'pending-acceptance' && (
+            <div className="deal-action-row">
+              <button className="confirm-button" onClick={copyActiveDealLink}>{linkCopied ? <><Check size={17} /> Link copied</> : <><Link2 size={17} /> Copy invite link</>}</button>
+              {activeDeal.sellerEmail === user.email && <button className="dispute-button" onClick={() => openCancel(activeDeal)}><X size={15} /> Cancel deal</button>}
+            </div>
+          )}
         </section>
         )}
 
@@ -485,6 +501,15 @@ function Dashboard() {
             <button className="confirm-button" type="submit"><Flag size={16} /> Report &amp; freeze funds</button>
           </div>
         </form>
+      </div></div>}
+
+      {cancelTarget && <div className="modal-backdrop" onClick={closeCancel}><div className="modal" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={closeCancel}><X size={18} /></button>
+        <div className="modal-icon gate"><X size={22} /></div>
+        <div className="section-label">CANCEL DEAL</div>
+        <h2>Cancel this invite?</h2>
+        <p>{cancelTarget.buyerContact || 'Your buyer'} won't be able to accept <b>{cancelTarget.itemName}</b> anymore — the invite link stops working. This can't be undone.</p>
+        <div className="modal-actions"><button className="cancel-button" onClick={closeCancel}>Keep it</button><button className="dispute-button" onClick={confirmCancel}><X size={15} /> Yes, cancel deal</button></div>
       </div></div>}
 
       {newDealOpen && <div className="modal-backdrop" onClick={closeNewDeal}><div className="modal" onClick={(event) => event.stopPropagation()}>
