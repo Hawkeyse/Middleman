@@ -126,7 +126,11 @@ function Profile() {
 
   // Same formula Dashboard uses (src/utils/trustScore.js), so the shareable
   // card below always matches what's shown live on the dashboard.
-  const deals = listDealsFor(user.email)
+  const [deals, setDeals] = useState([])
+  useEffect(() => {
+    if (!user.email) return
+    listDealsFor(user.email).then(setDeals)
+  }, [user.email])
   const completedCount = deals.filter((d) => d.status === 'released').length
   const boughtCount = deals.filter((d) => d.status === 'released' && d.buyerEmail === user.email).length
   const soldCount = deals.filter((d) => d.status === 'released' && d.sellerEmail === user.email).length
