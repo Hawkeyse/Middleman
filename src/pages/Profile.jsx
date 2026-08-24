@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
-import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, usernameError } from '../state/users.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
@@ -35,19 +35,26 @@ function Profile() {
   // Once set it's shown read-only — no renames in v1 (see firestore.rules).
   const [usernameDraft, setUsernameDraft] = useState('')
   const [usernameStatus, setUsernameStatus] = useState('idle')
+  const [usernameSuggestions, setUsernameSuggestions] = useState([])
   const [claimingUsername, setClaimingUsername] = useState(false)
   const [usernameSaveError, setUsernameSaveError] = useState('')
   const usernameCheckRef = useRef(0)
 
   useEffect(() => {
-    if (!usernameDraft) { setUsernameStatus('idle'); return }
-    if (usernameError(usernameDraft)) { setUsernameStatus('invalid'); return }
+    if (!usernameDraft) { setUsernameStatus('idle'); setUsernameSuggestions([]); return }
+    if (usernameError(usernameDraft)) { setUsernameStatus('invalid'); setUsernameSuggestions([]); return }
     setUsernameStatus('checking')
     const myCheck = ++usernameCheckRef.current
     const id = window.setTimeout(async () => {
       const available = await isUsernameAvailable(usernameDraft)
       if (usernameCheckRef.current !== myCheck) return
       setUsernameStatus(available ? 'available' : 'taken')
+      if (!available) {
+        const suggestions = await suggestUsernames(usernameDraft)
+        if (usernameCheckRef.current === myCheck) setUsernameSuggestions(suggestions)
+      } else {
+        setUsernameSuggestions([])
+      }
     }, 400)
     return () => window.clearTimeout(id)
   }, [usernameDraft, usernameCheckRef])
@@ -135,7 +142,11 @@ function Profile() {
                   </span>
                 </div>
                 {usernameSaveError && <small className="auth-username-hint">{usernameSaveError}</small>}
-                {usernameStatus === 'taken' && <small className="auth-username-hint">Already taken.</small>}
+                {usernameStatus === 'taken' && (
+                  <small className="auth-username-hint">
+                    Already taken.{usernameSuggestions.length > 0 && <> Try: {usernameSuggestions.map((s, i) => <span key={s}>{i > 0 && ', '}<a href="#" onClick={(e) => { e.preventDefault(); setUsernameDraft(s) }}>@{s}</a></span>)}</>}
+                  </small>
+                )}
                 {usernameStatus === 'available' && (
                   <button type="button" className="profile-username-claim" onClick={saveUsername} disabled={claimingUsername}>
                     {claimingUsername ? 'Claiming…' : 'Claim @' + usernameDraft}

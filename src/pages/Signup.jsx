@@ -5,7 +5,7 @@ import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useTransitionNavigate } from '../hooks/useTransitionNavigate.js'
 import { signUp, resendVerification, authErrorMessage } from '../utils/auth.js'
-import { claimUsername, isUsernameAvailable, normalizeUsername, usernameError } from '../state/users.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, suggestUsernames, usernameError } from '../state/users.js'
 import './Auth.css'
 
 const RESEND_COOLDOWN = 45
@@ -20,6 +20,7 @@ function Signup() {
 
   // 'idle' | 'checking' | 'available' | 'taken' | 'invalid'
   const [usernameStatus, setUsernameStatus] = useState('idle')
+  const [usernameSuggestions, setUsernameSuggestions] = useState([])
   const usernameCheckRef = useRef(0)
 
   const [stage, setStage] = useState('form') // 'form' | 'pending' | 'done'
@@ -33,17 +34,25 @@ function Signup() {
   // is just fast feedback so they're not surprised later.
   useEffect(() => {
     const raw = form.username
-    if (!raw) { setUsernameStatus('idle'); return }
-    if (usernameError(raw)) { setUsernameStatus('invalid'); return }
+    if (!raw) { setUsernameStatus('idle'); setUsernameSuggestions([]); return }
+    if (usernameError(raw)) { setUsernameStatus('invalid'); setUsernameSuggestions([]); return }
     setUsernameStatus('checking')
     const myCheck = ++usernameCheckRef.current
     const id = window.setTimeout(async () => {
       const available = await isUsernameAvailable(raw)
       if (usernameCheckRef.current !== myCheck) return // a newer keystroke superseded this check
       setUsernameStatus(available ? 'available' : 'taken')
+      if (!available) {
+        const suggestions = await suggestUsernames(raw)
+        if (usernameCheckRef.current === myCheck) setUsernameSuggestions(suggestions)
+      } else {
+        setUsernameSuggestions([])
+      }
     }, 400)
     return () => window.clearTimeout(id)
   }, [form.username])
+
+  const pickSuggestion = (name) => update('username')({ target: { value: name } })
 
   const goToLogin = (e) => { e.preventDefault(); navigate('/login') }
 
@@ -192,7 +201,11 @@ function Signup() {
                       {usernameStatus === 'taken' && <Icon name="close" size={14} />}
                     </span>
                   </div>
-                  {usernameStatus === 'taken' && <small className="auth-username-hint">Already taken.</small>}
+                  {usernameStatus === 'taken' && (
+                    <small className="auth-username-hint">
+                      Already taken.{usernameSuggestions.length > 0 && <> Try: {usernameSuggestions.map((s, i) => <span key={s}>{i > 0 && ', '}<a href="#" onClick={(e) => { e.preventDefault(); pickSuggestion(s) }}>@{s}</a></span>)}</>}
+                    </small>
+                  )}
                   {usernameStatus === 'invalid' && form.username && <small className="auth-username-hint">3-20 characters: lowercase letters, numbers, underscores.</small>}
                   {usernameStatus === 'available' && <small className="auth-username-hint ok">It's yours.</small>}
                 </div>

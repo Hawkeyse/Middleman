@@ -96,6 +96,34 @@ export async function isUsernameAvailable(rawUsername) {
   }
 }
 
+// A few alternatives to offer when someone's first choice is taken — shorter
+// fragments of what they typed (so "timtech" taken offers "tim"/"tech",
+// closer to something they'd actually recognize) plus numbered variants as a
+// fallback that never runs out. Checked sequentially and stops as soon as
+// `max` are confirmed available, so it's a handful of reads, not a burst.
+export async function suggestUsernames(rawBase, max = 3) {
+  const base = normalizeUsername(rawBase).replace(/[^a-z0-9_]/g, '')
+  if (base.length < 3) return []
+
+  const candidates = []
+  for (let cut = 3; cut <= base.length - 3; cut++) {
+    candidates.push(base.slice(0, cut))
+    candidates.push(base.slice(cut))
+  }
+  for (let i = 0; i < 8; i++) candidates.push(`${base}${Math.floor(2 + Math.random() * 97)}`)
+
+  const seen = new Set([base])
+  const found = []
+  for (const c of candidates) {
+    if (found.length >= max) break
+    if (seen.has(c)) continue
+    seen.add(c)
+    if (usernameError(c)) continue
+    if (await isUsernameAvailable(c)) found.push(c)
+  }
+  return found
+}
+
 // Claims a username for an account — one-time, no renames yet. The
 // usernames/{username} doc doubling as a reservation means two people racing
 // to claim the same name can't both win: whichever transaction's read sees
