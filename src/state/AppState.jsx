@@ -78,12 +78,14 @@ export function AppStateProvider({ children }) {
     return snap?.emailVerified || false
   }
 
-  // The verification-requests store (src/state/verifications.js) is the source of
-  // truth — the team's review decision lands there. Re-sync from it whenever the
-  // signed-in user changes, so an approval/decline made from /team is reflected
-  // here without the customer having to do anything.
-  const refreshVerification = useCallback(() => {
-    const record = getVerificationFor(user.email)
+  // The verifications collection (src/state/verifications.js) is the source
+  // of truth — the team's review decision lands there. Re-sync from it
+  // whenever the signed-in user changes, and poll while authed (same idea as
+  // accountStatus below) so an approval/decline made from /team — or on a
+  // different device — shows up here without the customer doing anything.
+  const refreshVerification = useCallback(async () => {
+    if (!user.email) { setVerification('unverified'); setVerificationMeta(null); return }
+    const record = await getVerificationFor(user.email)
     if (record) {
       setVerification(record.status)
       setVerificationMeta(record)
@@ -93,7 +95,12 @@ export function AppStateProvider({ children }) {
     }
   }, [user.email])
 
-  useEffect(() => refreshVerification(), [refreshVerification])
+  useEffect(() => {
+    refreshVerification()
+    if (!authed) return
+    const id = window.setInterval(refreshVerification, 3000)
+    return () => window.clearInterval(id)
+  }, [refreshVerification, authed])
 
   // Same idea for warn/ban decisions made from /team — re-read on user change,
   // and poll lightly so a ban issued mid-session actually locks the account out.
@@ -139,8 +146,8 @@ export function AppStateProvider({ children }) {
   const logout = () => signOutUser().catch(() => {})
 
   // Submitted by the user — now waits on manual review by the Middleman team.
-  const submitForReview = (meta) => {
-    const record = submitVerification({ email: user.email, name: user.name, ...meta })
+  const submitForReview = async (meta) => {
+    const record = await submitVerification({ email: user.email, name: user.name, ...meta })
     setVerification(record.status)
     setVerificationMeta(record)
   }

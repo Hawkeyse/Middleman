@@ -1,48 +1,22 @@
-const STORAGE_KEY = 'mm_verification_requests'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '../lib/firebase.js'
 
-function readAll() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}
-  } catch {
-    return {}
-  }
-}
-
-function writeAll(records) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
-  } catch {
-    // storage unavailable — still returns the record for the current session
-  }
-}
-
-// NOTE: localStorage stands in for a real backend/review-queue here. In production
-// this would be a server-side table the team's admin tooling reads from directly,
-// not something derived from the applicant's own browser storage.
-export function submitVerification({ email, name, country, age, dob, docType, docImage, selfieImage }) {
-  const all = readAll()
-  const id = email || `guest-${Date.now()}`
-  all[id] = {
-    id, email, name, country, age, dob, docType, docImage, selfieImage,
+// Firestore-backed — see firestore.rules. Submitting/resubmitting is a
+// direct client write (the rule only allows it landing back in 'pending',
+// never verified/declined) — approving or declining is team-only and goes
+// through api/team/verifications.js instead, since rules can't validate the
+// team passcode.
+export async function submitVerification({ email, name, country, age, dob, docType, docImage, selfieImage }) {
+  const record = {
+    id: email, email, name, country, age, dob, docType, docImage, selfieImage,
     status: 'pending', reason: null, submittedAt: new Date().toISOString(), decidedAt: null,
   }
-  writeAll(all)
-  return all[id]
+  await setDoc(doc(db, 'verifications', email), record)
+  return record
 }
 
-export function getVerificationFor(email) {
+export async function getVerificationFor(email) {
   if (!email) return null
-  return readAll()[email] || null
-}
-
-export function listVerifications() {
-  return Object.values(readAll()).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
-}
-
-export function setVerificationStatus(id, status, reason) {
-  const all = readAll()
-  if (!all[id]) return null
-  all[id] = { ...all[id], status, reason: reason || null, decidedAt: new Date().toISOString() }
-  writeAll(all)
-  return all[id]
+  const snap = await getDoc(doc(db, 'verifications', email))
+  return snap.exists() ? snap.data() : null
 }

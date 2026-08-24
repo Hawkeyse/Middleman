@@ -5,7 +5,6 @@ import {
   Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
-import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { teamFetch } from '../utils/teamFetch.js'
 import { requestNotifyPermission } from '../utils/notify.js'
@@ -95,7 +94,7 @@ function Team() {
   const [payouts, setPayouts] = useState([])
 
   const refresh = () => {
-    setRecords(listVerifications())
+    teamFetch('/api/team/verifications').then((data) => setRecords(data.records)).catch(() => {})
     setThreads(listThreads())
     teamFetch('/api/team/users').then((data) => setUsers(data.users)).catch(() => {})
     teamFetch('/api/team/transactions').then((data) => setTransactions(data.transactions)).catch(() => {})
@@ -153,11 +152,10 @@ function Team() {
   const selectedThread = threads.find((t) => t.email === selectedEmail) || null
   const selectedUser = users.find((u) => u.email === selectedUserEmail) || null
 
-  const approve = (id) => { setVerificationStatus(id, 'verified'); refresh() }
+  const approve = (id) => { teamFetch('/api/team/verifications', { method: 'POST', body: { id, status: 'verified' } }).then(refresh).catch(() => {}) }
   const decline = (id) => {
-    setVerificationStatus(id, 'declined', reasonDraft || 'Documents did not pass review.')
+    teamFetch('/api/team/verifications', { method: 'POST', body: { id, status: 'declined', reason: reasonDraft || 'Documents did not pass review.' } }).then(refresh).catch(() => {})
     setReasonDraft('')
-    refresh()
   }
 
   const replyToCustomer = (text, image) => {
