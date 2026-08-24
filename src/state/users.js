@@ -1,5 +1,9 @@
 import { collection, doc, documentId, endAt, getDoc, getDocs, limit, orderBy, query, runTransaction, setDoc, startAt } from 'firebase/firestore'
 import { db } from '../lib/firebase.js'
+import { authedFetch } from '../utils/authedFetch.js'
+import { normalizeUsername, usernameError } from '../utils/usernameRules.js'
+
+export { normalizeUsername, usernameError }
 
 // Firestore-backed now — see firestore.rules. A user can only ever read/write
 // their OWN doc (it can carry a real bank/momo account number in
@@ -25,10 +29,23 @@ export async function upsertUser({ email, name, phone }) {
         email, name: name || '', username: '', phone: phone || '',
         payoutMethod: null,
         status: 'active', warnings: [], banReason: null, bannedAt: null,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(), usernameHistory: [], lastUsernameChangeAt: null,
       }
 
   await setDoc(ref, payload, { merge: true })
+
+  // Mirrors the safe-to-expose subset onto the public profile doc — see
+  // firestore.rules (public_profiles is the only collection anyone, signed
+  // in or not, can read about someone else). Deliberately never writes
+  // `username` here — claimUsername/rename own that field exclusively, so
+  // there's no risk of this racing a fresh claim and stomping it back to ''.
+  const publicRef = doc(db, 'public_profiles', email)
+  if (!existing) {
+    await setDoc(publicRef, { email, name: name || '', usernameHistory: [], verified: false, memberSince: payload.createdAt }, { merge: true })
+  } else if (name) {
+    await setDoc(publicRef, { name }, { merge: true })
+  }
+
   return { ...existing, ...payload }
 }
 
@@ -45,39 +62,6 @@ export async function getUser(email) {
   if (!email) return null
   const snap = await getDoc(doc(db, 'users', email))
   return snap.exists() ? snap.data() : null
-}
-
-const USERNAME_RE = /^[a-z0-9_]{3,20}$/
-
-// Slurs and profanity to block from usernames, which are public (see the
-// usernames/{username} directory rule) and shown to counterparties on every
-// deal. Checked against a normalized form so common leetspeak/underscore
-// evasions (n1gga, n_i_g_g_a) still get caught.
-const BLOCKED_TERMS = [
-  'nigger', 'nigga', 'nigg', 'faggot', 'fag', 'retard', 'retarded', 'tranny',
-  'chink', 'spic', 'kike', 'gook', 'wetback', 'coon', 'beaner', 'paki',
-  'rape', 'rapist', 'nazi', 'hitler',
-  'fuck', 'shit', 'bitch', 'cunt', 'whore', 'slut', 'dick', 'pussy', 'cock',
-  'asshole', 'bastard', 'motherfucker',
-]
-
-function deleetify(u) {
-  return u.replace(/_/g, '')
-    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
-    .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
-}
-
-export function normalizeUsername(raw) {
-  return (raw || '').trim().toLowerCase()
-}
-
-export function usernameError(raw) {
-  const u = normalizeUsername(raw)
-  if (!u) return 'Pick a username.'
-  if (!USERNAME_RE.test(u)) return '3-20 characters: lowercase letters, numbers, underscores only.'
-  const plain = deleetify(u)
-  if (BLOCKED_TERMS.some((term) => plain.includes(term))) return 'That username isn\'t allowed.'
-  return ''
 }
 
 // Live "is this taken" check for instant feedback while typing — the actual
@@ -135,13 +119,35 @@ export async function claimUsername(email, name, rawUsername) {
 
   const usernameRef = doc(db, 'usernames', u)
   const userRef = doc(db, 'users', email)
+  const publicRef = doc(db, 'public_profiles', email)
   await runTransaction(db, async (tx) => {
     const existing = await tx.get(usernameRef)
     if (existing.exists()) throw new Error('That username is taken.')
     tx.set(usernameRef, { email, name: name || '' })
     tx.set(userRef, { username: u }, { merge: true })
+    tx.set(publicRef, { username: u }, { merge: true })
   })
   return u
+}
+
+// Renaming (unlike the first claim above) is rate-limited and keeps history,
+// so it goes through the server — see api/users/rename.js.
+export async function renameUsername(newUsername) {
+  return authedFetch('/api/users/rename', { body: { username: newUsername } })
+}
+
+// Resolves a username — current OR retired, since old handles are never
+// freed for someone else to claim (see claimUsername) — to the public
+// profile it belongs to. Two reads: the public usernames directory to find
+// the email, then the public profile doc itself.
+export async function getPublicProfile(rawUsername) {
+  const u = normalizeUsername(rawUsername)
+  if (!u) return null
+  const nameSnap = await getDoc(doc(db, 'usernames', u))
+  if (!nameSnap.exists()) return null
+  const { email } = nameSnap.data()
+  const profileSnap = await getDoc(doc(db, 'public_profiles', email))
+  return profileSnap.exists() ? { ...profileSnap.data(), viewedAs: u } : null
 }
 
 function baseUsernameFromName(name, email) {

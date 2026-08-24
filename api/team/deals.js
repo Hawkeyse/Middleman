@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore'
 import { requireTeam } from '../_lib/requireTeam.js'
 import { db } from '../_lib/firebaseAdmin.js'
 
@@ -38,6 +39,7 @@ export default async function handler(req, res) {
             chargedAmount: null, chargedCurrency: null, fee: null, sellerPayout: null,
             buyerEmail: deal.buyerEmail, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName, at: resolvedAt,
           })
+          tx.set(db.collection('public_profiles').doc(deal.sellerEmail), { completedDealsCount: FieldValue.increment(1) }, { merge: true })
         }
 
         return { ...deal, status, disputeResolution: decision, resolvedAt }

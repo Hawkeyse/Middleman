@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore'
 import { requireUser } from '../_lib/requireUser.js'
 import { db } from '../_lib/firebaseAdmin.js'
 
@@ -26,6 +27,10 @@ export default async function handler(req, res) {
         chargedAmount: null, chargedCurrency: null, fee: null, sellerPayout: null,
         buyerEmail: deal.buyerEmail, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName, at: releasedAt,
       })
+      // Public-profile stat (see api/users/rename.js's public_profiles doc) —
+      // best-effort merge, doesn't fail the release if the seller predates
+      // public profiles somehow.
+      tx.set(db.collection('public_profiles').doc(deal.sellerEmail), { completedDealsCount: FieldValue.increment(1) }, { merge: true })
 
       return { ...deal, status: 'released', releasedAt }
     })

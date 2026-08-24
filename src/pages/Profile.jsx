@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
-import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, renameUsername, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
@@ -71,6 +71,56 @@ function Profile() {
       setUsernameSaveError(err.message)
     } finally {
       setClaimingUsername(false)
+    }
+  }
+
+  // Renaming an already-claimed username — rate-limited to once a month
+  // server-side (see api/users/rename.js); cooldownDaysLeft here is just for
+  // display, the real enforcement happens on the server.
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renameStatus, setRenameStatus] = useState('idle')
+  const [renameSuggestions, setRenameSuggestions] = useState([])
+  const [renaming, setRenaming] = useState(false)
+  const [renameError, setRenameError] = useState('')
+  const renameCheckRef = useRef(0)
+
+  useEffect(() => {
+    if (!renameDraft) { setRenameStatus('idle'); setRenameSuggestions([]); return }
+    if (usernameError(renameDraft)) { setRenameStatus('invalid'); setRenameSuggestions([]); return }
+    setRenameStatus('checking')
+    const myCheck = ++renameCheckRef.current
+    const id = window.setTimeout(async () => {
+      const available = await isUsernameAvailable(renameDraft)
+      if (renameCheckRef.current !== myCheck) return
+      setRenameStatus(available ? 'available' : 'taken')
+      if (!available) {
+        const suggestions = await suggestUsernames(renameDraft)
+        if (renameCheckRef.current === myCheck) setRenameSuggestions(suggestions)
+      } else {
+        setRenameSuggestions([])
+      }
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [renameDraft])
+
+  const cooldownMsLeft = accountStatus?.lastUsernameChangeAt
+    ? new Date(accountStatus.lastUsernameChangeAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()
+    : 0
+  const cooldownDaysLeft = cooldownMsLeft > 0 ? Math.ceil(cooldownMsLeft / (24 * 60 * 60 * 1000)) : 0
+
+  const submitRename = async () => {
+    setRenameError('')
+    setRenaming(true)
+    try {
+      await renameUsername(renameDraft)
+      await refreshAccountStatus()
+      setRenameDraft('')
+      setRenameOpen(false)
+    } catch (err) {
+      setRenameError(err.message)
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -151,6 +201,50 @@ function Profile() {
                   <button type="button" className="profile-username-claim" onClick={saveUsername} disabled={claimingUsername}>
                     {claimingUsername ? 'Claiming…' : 'Claim @' + usernameDraft}
                   </button>
+                )}
+              </div>
+            )}
+
+            {accountStatus?.username && (
+              <div className="profile-field">
+                <label>Username</label>
+                <div className="profile-username-current">
+                  <span>@{accountStatus.username}</span>
+                  <Link to={`/u/${accountStatus.username}`} target="_blank" className="profile-username-view">View public profile</Link>
+                </div>
+                {accountStatus.usernameHistory?.length > 0 && (
+                  <small className="profile-username-history">Previously: {accountStatus.usernameHistory.map((h) => `@${h.username}`).join(', ')}</small>
+                )}
+
+                {!renameOpen ? (
+                  <button type="button" className="profile-username-rename-toggle" onClick={() => setRenameOpen(true)} disabled={cooldownDaysLeft > 0}>
+                    {cooldownDaysLeft > 0 ? `Change again in ${cooldownDaysLeft} day${cooldownDaysLeft === 1 ? '' : 's'}` : 'Change username'}
+                  </button>
+                ) : (
+                  <div className="profile-username-rename">
+                    <div className={`auth-username-wrap ${renameStatus}`}>
+                      <span className="auth-username-at">@</span>
+                      <input type="text" autoFocus placeholder="new_handle" value={renameDraft} onChange={(e) => setRenameDraft(normalizeUsername(e.target.value))} />
+                      <span className="auth-username-status">
+                        {renameStatus === 'checking' && <Loader2 size={14} className="spin" />}
+                        {renameStatus === 'available' && <Check size={14} />}
+                      </span>
+                    </div>
+                    {renameError && <small className="auth-username-hint">{renameError}</small>}
+                    {renameStatus === 'taken' && (
+                      <small className="auth-username-hint">
+                        Already taken.{renameSuggestions.length > 0 && <> Try: {renameSuggestions.map((s, i) => <span key={s}>{i > 0 && ', '}<a href="#" onClick={(e) => { e.preventDefault(); setRenameDraft(s) }}>@{s}</a></span>)}</>}
+                      </small>
+                    )}
+                    <div className="profile-username-rename-actions">
+                      <button type="button" className="cancel-button" onClick={() => { setRenameOpen(false); setRenameDraft(''); setRenameError('') }}>Cancel</button>
+                      {renameStatus === 'available' && (
+                        <button type="button" className="profile-username-claim" onClick={submitRename} disabled={renaming}>
+                          {renaming ? 'Saving…' : 'Save new username'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             )}

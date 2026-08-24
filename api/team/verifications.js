@@ -22,6 +22,10 @@ export default async function handler(req, res) {
       if (!snap.exists) return res.status(404).json({ error: 'Request not found' })
       const decidedAt = new Date().toISOString()
       await ref.set({ status, reason: reason || null, decidedAt }, { merge: true })
+      // id is the applicant's email (see src/state/verifications.js) — mirror
+      // the verified flag onto their public profile so it can show a badge
+      // without exposing the verification doc itself (docImage/selfieImage).
+      await db.collection('public_profiles').doc(id).set({ verified: status === 'verified' }, { merge: true })
       return res.status(200).json({ record: { ...snap.data(), status, reason: reason || null, decidedAt } })
     }
 

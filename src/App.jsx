@@ -13,6 +13,7 @@ import Verify from './pages/Verify.jsx'
 import Invite from './pages/Invite.jsx'
 import Team from './pages/Team.jsx'
 import Terms from './pages/Terms.jsx'
+import PublicProfile from './pages/PublicProfile.jsx'
 
 function RequireAuth({ children }) {
   const { authed, authChecked, banned } = useAppState()
@@ -30,6 +31,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/invite/:code" element={<Invite />} />
+      <Route path="/u/:username" element={<PublicProfile />} />
       <Route path="/team" element={<Team />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />

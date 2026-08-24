@@ -34,9 +34,38 @@ service cloud.firestore {
     match /users/{email} {
       allow read: if isMe(email);
       allow create: if isMe(email);
+      // username can only be set directly by the client on a first-ever
+      // claim (resource.data.username == '' — see claimUsername). Renaming
+      // an already-set username goes through api/users/rename.js instead,
+      // since that's rate-limited and writes usernameHistory, which the
+      // client can never touch here.
       allow update: if isMe(email) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'username', 'phone', 'payoutMethod']);
+          .hasOnly(['name', 'username', 'phone', 'payoutMethod']) &&
+        (request.resource.data.username == resource.data.username || resource.data.username == '');
+      allow delete: if false;
+    }
+
+    // Safe-to-expose subset of a profile, readable by anyone (signed in or
+    // not) — powers the public /u/{username} page. Never contains phone,
+    // payoutMethod, or the verification doc's images; those stay private on
+    // users/{email} and verifications/{email}. `verified` and
+    // `usernameHistory`/`completedDealsCount` are server-only (admin SDK,
+    // see api/team/verifications.js, api/users/rename.js, api/deals/
+    // release.js) — the client can create its own doc (at signup) and keep
+    // `name` current, and set `username` exactly once on a first claim, same
+    // shape as the users/{email} rule above.
+    match /public_profiles/{email} {
+      allow read: if true;
+      allow create: if isMe(email) &&
+        request.resource.data.keys().hasOnly(['email', 'name', 'username', 'usernameHistory', 'verified', 'memberSince', 'completedDealsCount']) &&
+        (!('verified' in request.resource.data) || request.resource.data.verified == false) &&
+        (!('usernameHistory' in request.resource.data) || request.resource.data.usernameHistory == []) &&
+        (!('completedDealsCount' in request.resource.data) || request.resource.data.completedDealsCount == 0);
+      allow update: if isMe(email) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'username']) &&
+        (request.resource.data.username == resource.data.username ||
+         !('username' in resource.data) || resource.data.username == '');
       allow delete: if false;
     }
 
