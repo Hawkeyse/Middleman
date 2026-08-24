@@ -6,7 +6,7 @@ import { authedFetch } from '../utils/authedFetch.js'
 // Firestore-backed — see firestore.rules. Create/cancel/dispute are direct
 // client writes (the rules allow exactly those transitions and nothing
 // else); accept (debits a wallet) and release (credits a seller) go through
-// api/deals/*.js on the server instead, since wallet_entries/transactions
+// api/customer.js on the server instead, since wallet_entries/transactions
 // are server-write-only.
 
 function genCode() {
@@ -60,13 +60,13 @@ export async function listDealsFor(email) {
 
 // Debits the buyer's wallet server-side and marks the deal paid.
 export async function acceptDeal(code, name) {
-  const { deal } = await authedFetch('/api/deals/accept', { body: { code, name } })
+  const { deal } = await authedFetch('/api/customer', { body: { action: 'acceptDeal', code, name } })
   return deal
 }
 
 // "Confirm delivery" — only the buyer who actually paid can release.
 export async function releaseDeal(code) {
-  const { deal } = await authedFetch('/api/deals/release', { body: { code } })
+  const { deal } = await authedFetch('/api/customer', { body: { action: 'releaseDeal', code } })
   return deal
 }
 

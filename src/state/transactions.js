@@ -2,9 +2,9 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase.js'
 
 // Firestore-backed — see firestore.rules. Never written by the client:
-// deposits/releases/payouts all get logged server-side (see
-// api/deals/accept.js, api/deals/release.js, api/team/payouts.js) alongside
-// the money movement they record, so there's no separate client-side write.
+// deposits/releases/payouts all get logged server-side (see api/customer.js
+// and api/team.js's payouts resource) alongside the money movement they
+// record, so there's no separate client-side write.
 
 export async function listTransactionsFor(email) {
   if (!email) return []

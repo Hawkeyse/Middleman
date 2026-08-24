@@ -7,7 +7,7 @@ async function parseJson(res) {
   }
 }
 
-// Every /api/team/* route re-checks this passcode server-side (see
+// Every team resource re-checks this passcode server-side (api/team.js, via
 // api/_lib/requireTeam.js) — sessionStorage just remembers what was typed at
 // the gate so it doesn't have to be re-entered on every action.
 export async function teamFetch(path, { method = 'GET', body } = {}) {

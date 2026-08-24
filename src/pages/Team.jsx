@@ -22,7 +22,7 @@ function TeamGate({ onUnlock }) {
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
 
-  // Verified server-side (api/team/login.js) against TEAM_PASSCODE — the old
+  // Verified server-side (api/team.js's login resource) against TEAM_PASSCODE — the old
   // version compared against a passcode sitting in plaintext in the shipped
   // JS bundle, readable by anyone via view-source.
   const submit = async (e) => {
@@ -30,7 +30,7 @@ function TeamGate({ onUnlock }) {
     setError('')
     setChecking(true)
     try {
-      const res = await fetch('/api/team/login', {
+      const res = await fetch('/api/team?resource=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-team-passcode': code },
       })
@@ -94,13 +94,13 @@ function Team() {
   const [payouts, setPayouts] = useState([])
 
   const refresh = () => {
-    teamFetch('/api/team/verifications').then((data) => setRecords(data.records)).catch(() => {})
+    teamFetch('/api/team?resource=verifications').then((data) => setRecords(data.records)).catch(() => {})
     setThreads(listThreads())
-    teamFetch('/api/team/users').then((data) => setUsers(data.users)).catch(() => {})
-    teamFetch('/api/team/transactions').then((data) => setTransactions(data.transactions)).catch(() => {})
-    teamFetch('/api/team/deals').then((data) => setDeals(data.deals)).catch(() => {})
-    teamFetch('/api/team/refunds').then((data) => setRefunds(data.requests)).catch(() => {})
-    teamFetch('/api/team/payouts').then((data) => setPayouts(data.requests)).catch(() => {})
+    teamFetch('/api/team?resource=users').then((data) => setUsers(data.users)).catch(() => {})
+    teamFetch('/api/team?resource=transactions').then((data) => setTransactions(data.transactions)).catch(() => {})
+    teamFetch('/api/team?resource=deals').then((data) => setDeals(data.deals)).catch(() => {})
+    teamFetch('/api/team?resource=refunds').then((data) => setRefunds(data.requests)).catch(() => {})
+    teamFetch('/api/team?resource=payouts').then((data) => setPayouts(data.requests)).catch(() => {})
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -135,7 +135,7 @@ function Team() {
   const openDisputeCount = disputedDeals.filter((d) => d.status === 'disputed').length
   const visibleDisputes = disputeFilter === 'all' ? disputedDeals : disputedDeals.filter((d) => (disputeFilter === 'open' ? d.status === 'disputed' : d.status !== 'disputed'))
   const selectedDeal = disputedDeals.find((d) => d.code === selectedDealCode) || null
-  const resolve = (decision) => { teamFetch('/api/team/deals', { method: 'POST', body: { code: selectedDealCode, decision } }).then(refresh).catch(() => {}) }
+  const resolve = (decision) => { teamFetch('/api/team?resource=deals', { method: 'POST', body: { code: selectedDealCode, decision } }).then(refresh).catch(() => {}) }
 
   // Refunds (buyer wallet) and payouts (seller earnings) are different money
   // flows underneath, but the team just wants one queue of "money to send out".
@@ -144,17 +144,17 @@ function Team() {
     ...payouts.map((p) => ({ ...p, kind: 'payout' })),
   ].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
   const pendingRefundCount = withdrawals.filter((r) => r.status === 'pending').length
-  const markRefundSent = (id) => { teamFetch('/api/team/refunds', { method: 'POST', body: { id } }).then(refresh).catch(() => {}) }
-  const markPayoutSent = (request) => { teamFetch('/api/team/payouts', { method: 'POST', body: { id: request.id } }).then(refresh).catch(() => {}) }
+  const markRefundSent = (id) => { teamFetch('/api/team?resource=refunds', { method: 'POST', body: { id } }).then(refresh).catch(() => {}) }
+  const markPayoutSent = (request) => { teamFetch('/api/team?resource=payouts', { method: 'POST', body: { id: request.id } }).then(refresh).catch(() => {}) }
 
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null
   const selectedThread = threads.find((t) => t.email === selectedEmail) || null
   const selectedUser = users.find((u) => u.email === selectedUserEmail) || null
 
-  const approve = (id) => { teamFetch('/api/team/verifications', { method: 'POST', body: { id, status: 'verified' } }).then(refresh).catch(() => {}) }
+  const approve = (id) => { teamFetch('/api/team?resource=verifications', { method: 'POST', body: { id, status: 'verified' } }).then(refresh).catch(() => {}) }
   const decline = (id) => {
-    teamFetch('/api/team/verifications', { method: 'POST', body: { id, status: 'declined', reason: reasonDraft || 'Documents did not pass review.' } }).then(refresh).catch(() => {})
+    teamFetch('/api/team?resource=verifications', { method: 'POST', body: { id, status: 'declined', reason: reasonDraft || 'Documents did not pass review.' } }).then(refresh).catch(() => {})
     setReasonDraft('')
   }
 
@@ -167,9 +167,9 @@ function Team() {
   const joinChat = (email) => { joinThread(email, agentName); refresh() }
   const closeChat = (email) => { closeThread(email); refresh() }
 
-  const warn = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.' } }).then(refresh).catch(() => {}); setActionDraft('') }
-  const ban = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
-  const unban = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'unban', email } }).then(refresh).catch(() => {}) }
+  const warn = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.' } }).then(refresh).catch(() => {}); setActionDraft('') }
+  const ban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
+  const unban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'unban', email } }).then(refresh).catch(() => {}) }
 
   if (!unlocked) return <TeamGate onUnlock={() => setUnlocked(true)} />
 

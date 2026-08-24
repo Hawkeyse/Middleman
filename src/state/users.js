@@ -8,7 +8,7 @@ export { normalizeUsername, usernameError }
 // Firestore-backed now — see firestore.rules. A user can only ever read/write
 // their OWN doc (it can carry a real bank/momo account number in
 // payoutMethod), so nothing here can be used to look up anyone else. The
-// team's warn/ban/list actions live server-side in api/team/users.js instead,
+// team's warn/ban/list actions live server-side in api/team.js instead,
 // since Firestore rules have no way to trust the /team passcode.
 
 // Registers/updates the directory entry for a user — called on every
@@ -130,10 +130,10 @@ export async function claimUsername(email, name, rawUsername) {
   return u
 }
 
-// Renaming (unlike the first claim above) is rate-limited and keeps history,
-// so it goes through the server — see api/users/rename.js.
+// Renaming (unlike the first claim above) is rate-limited and keeps
+// history, so it goes through the server — see api/customer.js.
 export async function renameUsername(newUsername) {
-  return authedFetch('/api/users/rename', { body: { username: newUsername } })
+  return authedFetch('/api/customer', { body: { action: 'renameUsername', username: newUsername } })
 }
 
 // Resolves a username — current OR retired, since old handles are never

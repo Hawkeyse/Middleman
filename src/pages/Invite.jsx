@@ -34,7 +34,7 @@ function Invite() {
   }, [code])
 
   // Accepting a deal spends straight from the buyer's Middleman wallet —
-  // a single atomic server call (see api/deals/accept.js) instead of
+  // a single atomic server call (see api/customer.js's acceptDeal) instead of
   // charging Paystack fresh every time.
   const spendAndAccept = async () => {
     try {

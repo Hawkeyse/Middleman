@@ -75,7 +75,7 @@ function Profile() {
   }
 
   // Renaming an already-claimed username — rate-limited to once a month
-  // server-side (see api/users/rename.js); cooldownDaysLeft here is just for
+  // server-side (see api/customer.js's renameUsername); cooldownDaysLeft here is just for
   // display, the real enforcement happens on the server.
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')

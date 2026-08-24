@@ -20,13 +20,13 @@ export async function getWalletBalance(email, currency) {
 
 // Credits the wallet after a real, provider-verified payment.
 export async function creditDeposit(provider, reference) {
-  const { entry } = await authedFetch('/api/wallet/deposit', { body: { provider, reference } })
+  const { entry } = await authedFetch('/api/customer', { body: { action: 'depositWallet', provider, reference } })
   return entry
 }
 
 // Pulls unused wallet balance back out — handled manually by the team, not
 // automatically; this just files the request.
 export async function requestRefund({ amount, currency, note }) {
-  const { request } = await authedFetch('/api/wallet/refund', { body: { amount, currency, note } })
+  const { request } = await authedFetch('/api/customer', { body: { action: 'refundWallet', amount, currency, note } })
   return request
 }

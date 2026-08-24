@@ -4,7 +4,7 @@ import { db } from '../lib/firebase.js'
 // Firestore-backed — see firestore.rules. Submitting/resubmitting is a
 // direct client write (the rule only allows it landing back in 'pending',
 // never verified/declined) — approving or declining is team-only and goes
-// through api/team/verifications.js instead, since rules can't validate the
+// through api/team.js instead, since rules can't validate the
 // team passcode.
 export async function submitVerification({ email, name, country, age, dob, docType, docImage, selfieImage }) {
   const record = {

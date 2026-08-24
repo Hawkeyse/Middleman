@@ -1,0 +1,191 @@
+import { FieldValue } from 'firebase-admin/firestore'
+import { requireTeam } from './_lib/requireTeam.js'
+import { db } from './_lib/firebaseAdmin.js'
+
+// Every team-privileged route in one function, dispatched by ?resource=,
+// instead of one file per resource — Vercel's Hobby plan caps a deployment
+// at 12 serverless functions, and this app already has 7 pre-existing
+// payment-provider routes it can't rename (paystack/flutterwave register
+// their webhook URLs externally), so anything new has to consolidate to
+// leave room. See src/utils/teamFetch.js for the client side.
+
+async function handleLogin(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  res.status(200).json({ ok: true })
+}
+
+async function handleUsers(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('users').get()
+    const users = snap.docs.map((d) => d.data()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    return res.status(200).json({ users })
+  }
+
+  if (req.method === 'POST') {
+    const { action, email, reason } = req.body || {}
+    if (!email) return res.status(400).json({ error: 'email is required' })
+    const ref = db.collection('users').doc(email)
+
+    if (action === 'warn') {
+      const snap = await ref.get()
+      if (!snap.exists) return res.status(404).json({ error: 'User not found' })
+      const warnings = [...(snap.data().warnings || []), { reason: reason || 'No reason given.', at: new Date().toISOString() }]
+      await ref.set({ status: 'warned', warnings }, { merge: true })
+    } else if (action === 'ban') {
+      await ref.set({ status: 'banned', banReason: reason || 'Violated Middleman terms.', bannedAt: new Date().toISOString() }, { merge: true })
+    } else if (action === 'unban') {
+      await ref.set({ status: 'active', banReason: null, bannedAt: null }, { merge: true })
+    } else {
+      return res.status(400).json({ error: 'Unknown action' })
+    }
+
+    const updated = await ref.get()
+    return res.status(200).json({ user: updated.data() })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handleVerifications(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('verifications').get()
+    const records = snap.docs.map((d) => d.data()).sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
+    return res.status(200).json({ records })
+  }
+
+  if (req.method === 'POST') {
+    const { id, status, reason } = req.body || {}
+    if (!id || !['verified', 'declined'].includes(status)) return res.status(400).json({ error: 'id and a valid status are required' })
+    const ref = db.collection('verifications').doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) return res.status(404).json({ error: 'Request not found' })
+    const decidedAt = new Date().toISOString()
+    await ref.set({ status, reason: reason || null, decidedAt }, { merge: true })
+    // id is the applicant's email (see src/state/verifications.js) — mirror
+    // the verified flag onto their public profile so it can show a badge
+    // without exposing the verification doc itself (docImage/selfieImage).
+    await db.collection('public_profiles').doc(id).set({ verified: status === 'verified' }, { merge: true })
+    return res.status(200).json({ record: { ...snap.data(), status, reason: reason || null, decidedAt } })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handleDeals(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('deals').get()
+    const deals = snap.docs.map((d) => d.data()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    return res.status(200).json({ deals })
+  }
+
+  if (req.method === 'POST') {
+    const { code, decision } = req.body || {}
+    if (!code || !['release', 'refund'].includes(decision)) return res.status(400).json({ error: 'code and a valid decision are required' })
+
+    const dealRef = db.collection('deals').doc(code)
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(dealRef)
+      if (!snap.exists) throw Object.assign(new Error('Deal not found'), { status: 404 })
+      const deal = snap.data()
+      if (deal.status !== 'disputed') throw Object.assign(new Error('This deal is not under dispute.'), { status: 409 })
+
+      const resolvedAt = new Date().toISOString()
+      const status = decision === 'release' ? 'released' : 'refunded'
+      tx.update(dealRef, { status, disputeResolution: decision, resolvedAt })
+
+      // 'refund' is handled manually outside the app (see Dashboard's
+      // dispute-note copy) — only 'release' pays out through the app, so
+      // only that one needs a transaction logged for it to show up in the
+      // seller's balance.
+      if (decision === 'release') {
+        tx.set(db.collection('transactions').doc(), {
+          type: 'release', dealCode: code, itemName: deal.itemName, amount: deal.sellerPayout ?? deal.amount, currency: deal.currency,
+          chargedAmount: null, chargedCurrency: null, fee: null, sellerPayout: null,
+          buyerEmail: deal.buyerEmail, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName, at: resolvedAt,
+        })
+        tx.set(db.collection('public_profiles').doc(deal.sellerEmail), { completedDealsCount: FieldValue.increment(1) }, { merge: true })
+      }
+
+      return { ...deal, status, disputeResolution: decision, resolvedAt }
+    })
+
+    return res.status(200).json({ deal: result })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handleTransactions(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  const snap = await db.collection('transactions').get()
+  const transactions = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+  res.status(200).json({ transactions })
+}
+
+async function handleRefunds(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('refund_requests').get()
+    const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''))
+    return res.status(200).json({ requests })
+  }
+
+  if (req.method === 'POST') {
+    const { id } = req.body || {}
+    if (!id) return res.status(400).json({ error: 'id is required' })
+    const ref = db.collection('refund_requests').doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) return res.status(404).json({ error: 'Request not found' })
+    const completedAt = new Date().toISOString()
+    await ref.set({ status: 'completed', completedAt }, { merge: true })
+    return res.status(200).json({ request: { id, ...snap.data(), status: 'completed', completedAt } })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handlePayouts(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('payout_requests').get()
+    const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''))
+    return res.status(200).json({ requests })
+  }
+
+  if (req.method === 'POST') {
+    const { id } = req.body || {}
+    if (!id) return res.status(400).json({ error: 'id is required' })
+    const ref = db.collection('payout_requests').doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) return res.status(404).json({ error: 'Request not found' })
+    const request = snap.data()
+    const completedAt = new Date().toISOString()
+
+    const batch = db.batch()
+    batch.set(ref, { status: 'completed', completedAt }, { merge: true })
+    batch.set(db.collection('transactions').doc(), {
+      type: 'payout', dealCode: null, itemName: 'Wallet payout', amount: request.amount, currency: request.currency,
+      chargedAmount: null, chargedCurrency: null, fee: null, sellerPayout: null,
+      buyerEmail: null, sellerEmail: request.email, counterparty: 'Middleman', at: completedAt,
+    })
+    await batch.commit()
+
+    return res.status(200).json({ request: { id, ...request, status: 'completed', completedAt } })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
+const RESOURCES = {
+  login: handleLogin, users: handleUsers, verifications: handleVerifications,
+  deals: handleDeals, transactions: handleTransactions, refunds: handleRefunds, payouts: handlePayouts,
+}
+
+export default async function handler(req, res) {
+  try {
+    requireTeam(req)
+    const fn = RESOURCES[req.query.resource]
+    if (!fn) return res.status(400).json({ error: 'Unknown resource' })
+    await fn(req, res)
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message })
+  }
+}
