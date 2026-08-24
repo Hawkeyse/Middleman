@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowUpRight, Bell, Check, ChevronDown, CircleHelp, Copy, Flag, Image as ImageIcon,
@@ -8,8 +8,8 @@ import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
-import { logTransaction, listTransactionsFor } from '../state/transactions.js'
-import { getWalletBalance, logWalletEntry, requestRefund } from '../state/wallet.js'
+import { listTransactionsFor } from '../state/transactions.js'
+import { creditDeposit, getWalletBalance, requestRefund } from '../state/wallet.js'
 import { requestPayout } from '../state/payoutRequests.js'
 import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
 import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
@@ -83,11 +83,32 @@ function Dashboard() {
   const [payoutRequestError, setPayoutRequestError] = useState('')
   const [payoutRequestSent, setPayoutRequestSent] = useState(false)
 
-  // Recomputed fresh on every render straight from localStorage (see
-  // src/state/deals.js and transactions.js) so any mutation — a new deal, a
-  // payment landing, a release — shows up immediately without extra plumbing.
-  const deals = listDealsFor(user.email)
-  const transactions = listTransactionsFor(user.email)
+  // Firestore-backed now (see src/state/deals.js, transactions.js, wallet.js)
+  // so it's loaded async and re-polled, not read straight off the render —
+  // the whole point is that this now stays in sync across devices, not just
+  // across components on this one page. Any action that mutates something
+  // (release, cancel, dispute, deposit, refund, payout, new deal) calls
+  // loadData() itself afterward so it doesn't wait for the next poll tick.
+  const [deals, setDeals] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [walletBalances, setWalletBalances] = useState({ GHS: 0, NGN: 0, USD: 0 })
+
+  const loadData = useCallback(async () => {
+    if (!user.email) return
+    const [d, t, ghs, ngn, usd] = await Promise.all([
+      listDealsFor(user.email), listTransactionsFor(user.email),
+      getWalletBalance(user.email, 'GHS'), getWalletBalance(user.email, 'NGN'), getWalletBalance(user.email, 'USD'),
+    ])
+    setDeals(d)
+    setTransactions(t)
+    setWalletBalances({ GHS: ghs, NGN: ngn, USD: usd })
+  }, [user.email])
+
+  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    const id = window.setInterval(loadData, 4000)
+    return () => window.clearInterval(id)
+  }, [loadData])
 
   // Balances are tracked per currency — summing dollars and cedis into one
   // number would be meaningless. CURRENCIES has a fixed set, so calling
@@ -99,8 +120,6 @@ function Dashboard() {
     if (t.type === 'release') balances[cur] = (balances[cur] || 0) + Number(t.amount)
     else if (t.type === 'payout') balances[cur] = (balances[cur] || 0) - Number(t.amount)
   }
-
-  const walletBalances = { GHS: getWalletBalance(user.email, 'GHS'), NGN: getWalletBalance(user.email, 'NGN'), USD: getWalletBalance(user.email, 'USD') }
 
   const completedCount = deals.filter((d) => d.status === 'released').length
   const warningsCount = accountStatus?.warnings?.length || 0
@@ -163,30 +182,37 @@ function Dashboard() {
 
   const closeModal = () => { setShowModal(false); setReleased(false); setReleaseTarget(null) }
   const openRelease = (deal) => { setReleaseTarget(deal); setShowModal(true) }
-  const releaseFunds = () => {
+  const [releaseError, setReleaseError] = useState('')
+  const releaseFunds = async () => {
     if (!releaseTarget) return
-    const updated = releaseDeal(releaseTarget.code, user.email)
-    if (!updated) return
-    logTransaction({ type: 'release', dealCode: updated.code, itemName: updated.itemName, amount: updated.sellerPayout ?? updated.amount, buyerEmail: updated.buyerEmail, sellerEmail: updated.sellerEmail, counterparty: updated.sellerName })
-    setReleased(true)
-    window.setTimeout(closeModal, 2200)
+    setReleaseError('')
+    try {
+      await releaseDeal(releaseTarget.code)
+      setReleased(true)
+      await loadData()
+      window.setTimeout(closeModal, 2200)
+    } catch (err) {
+      setReleaseError(err.message || 'Could not release funds. Please try again.')
+    }
   }
 
   const openCancel = (deal) => setCancelTarget(deal)
   const closeCancel = () => setCancelTarget(null)
-  const confirmCancel = () => {
+  const confirmCancel = async () => {
     if (!cancelTarget) return
-    cancelDeal(cancelTarget.code, user.email)
+    await cancelDeal(cancelTarget.code, user.email)
     closeCancel()
+    loadData()
   }
 
   const openDispute = (deal) => { setDisputeTarget(deal); setDisputeReason(''); setDisputeOpen(true) }
   const closeDispute = () => { setDisputeOpen(false); setDisputeTarget(null); setDisputeReason('') }
-  const submitDispute = (e) => {
+  const submitDispute = async (e) => {
     e.preventDefault()
     if (!disputeTarget || !disputeReason.trim()) return
-    disputeDeal(disputeTarget.code, user.email, disputeReason.trim())
+    await disputeDeal(disputeTarget.code, user.email, disputeReason.trim())
     closeDispute()
+    loadData()
   }
 
   const openDeposit = () => { setDepositForm({ currency: 'GHS', amount: '' }); setDepositError(''); setDepositOpen(true) }
@@ -202,7 +228,8 @@ function Dashboard() {
       })
       const verified = await verifyProviderPayment(provider, reference)
       if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
-      logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
+      await creditDeposit(provider, reference)
+      await loadData()
       setDepositOpen(false)
     } catch (err) {
       setDepositError(err.message || 'Deposit failed. Please try again.')
@@ -212,28 +239,38 @@ function Dashboard() {
   }
 
   const openRefund = () => { setRefundForm({ currency: 'GHS', amount: '', note: '' }); setRefundError(''); setRefundSent(false); setRefundOpen(true) }
-  const submitRefund = (e) => {
+  const submitRefund = async (e) => {
     e.preventDefault()
     const amt = Number(refundForm.amount)
     const available = walletBalances[refundForm.currency] || 0
     if (!amt || amt <= 0) { setRefundError('Enter an amount.'); return }
     if (amt > available) { setRefundError(`You only have ${symbolFor(refundForm.currency)} ${money(available)} available.`); return }
-    requestRefund({ email: user.email, amount: amt, currency: refundForm.currency, note: refundForm.note })
-    setRefundError('')
-    setRefundSent(true)
+    try {
+      await requestRefund({ amount: amt, currency: refundForm.currency, note: refundForm.note })
+      setRefundError('')
+      setRefundSent(true)
+      loadData()
+    } catch (err) {
+      setRefundError(err.message || 'Could not request a refund. Please try again.')
+    }
   }
 
   const openPayoutRequest = () => { setPayoutRequestForm({ currency: 'GHS', amount: '', note: '' }); setPayoutRequestError(''); setPayoutRequestSent(false); setPayoutRequestOpen(true) }
-  const submitPayoutRequest = (e) => {
+  const submitPayoutRequest = async (e) => {
     e.preventDefault()
     const amt = Number(payoutRequestForm.amount)
     const available = balances[payoutRequestForm.currency] || 0
     if (!amt || amt <= 0) { setPayoutRequestError('Enter an amount.'); return }
     if (amt > available) { setPayoutRequestError(`You only have ${symbolFor(payoutRequestForm.currency)} ${money(available)} available.`); return }
     if (!hasPayoutMethod) { setPayoutRequestError('Add a payout method in your profile first.'); return }
-    requestPayout({ email: user.email, amount: amt, currency: payoutRequestForm.currency, note: payoutRequestForm.note })
-    setPayoutRequestError('')
-    setPayoutRequestSent(true)
+    try {
+      await requestPayout({ amount: amt, currency: payoutRequestForm.currency, note: payoutRequestForm.note })
+      setPayoutRequestError('')
+      setPayoutRequestSent(true)
+      loadData()
+    } catch (err) {
+      setPayoutRequestError(err.message || 'Could not request a payout. Please try again.')
+    }
   }
 
   // Deal-affecting actions require identity verification first.
@@ -260,11 +297,12 @@ function Dashboard() {
     reader.readAsDataURL(file)
   }
 
-  const submitNewDeal = (e) => {
+  const submitNewDeal = async (e) => {
     e.preventDefault()
-    const deal = createDeal({ ...dealForm, amount: Number(dealForm.amount), sellerName: user.name || 'A Middleman seller', sellerEmail: user.email })
+    const deal = await createDeal({ ...dealForm, amount: Number(dealForm.amount), sellerName: user.name || 'A Middleman seller', sellerEmail: user.email })
     setCreatedDeal(deal)
     setNewDealStep('success')
+    loadData()
   }
 
   const inviteUrl = createdDeal ? `${window.location.origin}/invite/${createdDeal.code}` : ''
@@ -458,6 +496,7 @@ function Dashboard() {
           <div className="section-label">DELIVERY CONFIRMATION</div>
           <h2>Has your package arrived safely?</h2>
           <p>Confirming delivery releases <b>{symbolFor(releaseTarget?.currency)} {money(releaseTarget?.amount)}</b> to {releaseTarget?.sellerName || 'the seller'}. This action cannot be undone.</p>
+          {releaseError && <p className="invite-error"><Icon name="alarm" size={13} /> {releaseError}</p>}
           <div className="modal-actions"><button className="cancel-button" onClick={closeModal}>Not yet</button><button className="confirm-button" onClick={releaseFunds}>Yes, release funds <Check size={17} /></button></div>
         </>}
       </div></div>}

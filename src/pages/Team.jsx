@@ -8,10 +8,6 @@ import Icon from '../components/Icon.jsx'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
 import { teamFetch } from '../utils/teamFetch.js'
-import { listAllTransactions, logTransaction } from '../state/transactions.js'
-import { listAllDeals, resolveDispute } from '../state/deals.js'
-import { listRefundRequests, completeRefund } from '../state/wallet.js'
-import { listPayoutRequests, markPayoutCompleted } from '../state/payoutRequests.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { money, symbolFor } from '../utils/currencies.js'
@@ -102,10 +98,10 @@ function Team() {
     setRecords(listVerifications())
     setThreads(listThreads())
     teamFetch('/api/team/users').then((data) => setUsers(data.users)).catch(() => {})
-    setTransactions(listAllTransactions())
-    setDeals(listAllDeals())
-    setRefunds(listRefundRequests())
-    setPayouts(listPayoutRequests())
+    teamFetch('/api/team/transactions').then((data) => setTransactions(data.transactions)).catch(() => {})
+    teamFetch('/api/team/deals').then((data) => setDeals(data.deals)).catch(() => {})
+    teamFetch('/api/team/refunds').then((data) => setRefunds(data.requests)).catch(() => {})
+    teamFetch('/api/team/payouts').then((data) => setPayouts(data.requests)).catch(() => {})
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -140,7 +136,7 @@ function Team() {
   const openDisputeCount = disputedDeals.filter((d) => d.status === 'disputed').length
   const visibleDisputes = disputeFilter === 'all' ? disputedDeals : disputedDeals.filter((d) => (disputeFilter === 'open' ? d.status === 'disputed' : d.status !== 'disputed'))
   const selectedDeal = disputedDeals.find((d) => d.code === selectedDealCode) || null
-  const resolve = (decision) => { resolveDispute(selectedDealCode, decision); refresh() }
+  const resolve = (decision) => { teamFetch('/api/team/deals', { method: 'POST', body: { code: selectedDealCode, decision } }).then(refresh).catch(() => {}) }
 
   // Refunds (buyer wallet) and payouts (seller earnings) are different money
   // flows underneath, but the team just wants one queue of "money to send out".
@@ -149,12 +145,8 @@ function Team() {
     ...payouts.map((p) => ({ ...p, kind: 'payout' })),
   ].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
   const pendingRefundCount = withdrawals.filter((r) => r.status === 'pending').length
-  const markRefundSent = (id) => { completeRefund(id); refresh() }
-  const markPayoutSent = (request) => {
-    markPayoutCompleted(request.id)
-    logTransaction({ type: 'payout', itemName: 'Wallet payout', amount: request.amount, currency: request.currency, sellerEmail: request.email, counterparty: 'Middleman' })
-    refresh()
-  }
+  const markRefundSent = (id) => { teamFetch('/api/team/refunds', { method: 'POST', body: { id } }).then(refresh).catch(() => {}) }
+  const markPayoutSent = (request) => { teamFetch('/api/team/payouts', { method: 'POST', body: { id: request.id } }).then(refresh).catch(() => {}) }
 
   const visible = filter === 'all' ? records : records.filter((r) => r.status === filter)
   const selected = records.find((r) => r.id === selectedId) || null

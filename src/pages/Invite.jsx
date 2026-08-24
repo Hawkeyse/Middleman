@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowRight, Loader2, LockKeyhole, Receipt, ShieldCheck } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
-import { getDeal, markDealPaid } from '../state/deals.js'
-import { logTransaction } from '../state/transactions.js'
-import { getWalletBalance, logWalletEntry } from '../state/wallet.js'
+import { acceptDeal, getDeal } from '../state/deals.js'
+import { creditDeposit, getWalletBalance } from '../state/wallet.js'
 import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
 import { money, symbolFor } from '../utils/currencies.js'
 import './Invite.css'
@@ -16,7 +15,8 @@ function Invite() {
   const { code } = useParams()
   const navigate = useNavigate()
   const { authed, user, verification } = useAppState()
-  const deal = getDeal(code)
+  const [deal, setDeal] = useState(null)
+  const [dealLoading, setDealLoading] = useState(true)
   const [accepting, setAccepting] = useState(false)
   const [error, setError] = useState('')
 
@@ -26,28 +26,39 @@ function Invite() {
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState('')
 
-  // Accepting a deal spends straight from the buyer's Middleman wallet
-  // instead of charging Paystack fresh every time — see src/state/wallet.js.
-  const spendAndAccept = () => {
-    logWalletEntry({ email: user.email, type: 'spend', amount: deal.buyerTotal, currency: deal.currency, dealCode: code })
-    logTransaction({ type: 'deposit', dealCode: code, itemName: deal.itemName, amount: deal.buyerTotal, currency: deal.currency, fee: deal.fee, sellerPayout: deal.sellerPayout, buyerEmail: user.email, sellerEmail: deal.sellerEmail, counterparty: deal.sellerName })
-    markDealPaid(code, user.email, user.name)
-    navigate('/dashboard')
+  useEffect(() => {
+    let cancelled = false
+    setDealLoading(true)
+    getDeal(code).then((d) => { if (!cancelled) { setDeal(d); setDealLoading(false) } })
+    return () => { cancelled = true }
+  }, [code])
+
+  // Accepting a deal spends straight from the buyer's Middleman wallet —
+  // a single atomic server call (see api/deals/accept.js) instead of
+  // charging Paystack fresh every time.
+  const spendAndAccept = async () => {
+    try {
+      await acceptDeal(code, user.name)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err.message || 'Could not accept this deal. Please try again.')
+      setAccepting(false)
+    }
   }
 
-  const accept = () => {
+  const accept = async () => {
     if (!authed) { navigate('/signup', { state: { inviteCode: code } }); return }
     if (verification !== 'verified') { navigate('/verify', { state: { from: `/invite/${code}` } }); return }
     setError('')
     setAccepting(true)
-    const balance = getWalletBalance(user.email, deal.currency)
+    const balance = await getWalletBalance(user.email, deal.currency)
     if (balance < deal.buyerTotal) {
       setShortfall(Math.round((deal.buyerTotal - balance) * 100) / 100)
       setTopUpOpen(true)
       setAccepting(false)
       return
     }
-    spendAndAccept()
+    await spendAndAccept()
   }
 
   const topUpAndAccept = async () => {
@@ -60,10 +71,10 @@ function Invite() {
       })
       const verified = await verifyProviderPayment(provider, reference)
       if (verified.status !== 'success') throw new Error('Payment was not successful. No funds were moved.')
-      logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
+      await creditDeposit(provider, reference)
       localStorage.removeItem(pendingRefKey(code))
       setTopUpOpen(false)
-      spendAndAccept()
+      await spendAndAccept()
     } catch (err) {
       setError(err.message || 'Payment failed. Please try again.')
     } finally {
@@ -87,11 +98,11 @@ function Invite() {
     try {
       const verified = await verifyProviderPayment(pendingRef.provider, pendingRef.reference)
       if (verified.status === 'success') {
-        logWalletEntry({ email: user.email, type: 'deposit', amount: verified.amount, currency: verified.currency })
+        await creditDeposit(pendingRef.provider, pendingRef.reference)
         localStorage.removeItem(pendingRefKey(code))
         setChecking(false)
         setTopUpOpen(false)
-        spendAndAccept()
+        await spendAndAccept()
       } else {
         localStorage.removeItem(pendingRefKey(code))
         setCheckNote("That payment attempt didn't go through — no funds were moved. Feel free to try again.")
@@ -101,6 +112,14 @@ function Invite() {
       setError(err.message || 'Could not check payment status. Please try again.')
       setChecking(false)
     }
+  }
+
+  if (dealLoading) {
+    return (
+      <div className="invite-page">
+        <div className="invite-card"><Loader2 size={26} className="spin" /></div>
+      </div>
+    )
   }
 
   if (!deal) {
