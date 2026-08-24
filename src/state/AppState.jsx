@@ -50,6 +50,17 @@ export function AppStateProvider({ children }) {
         // off it (payout method, warn/ban) silently has nothing to attach to.
         upsertUser({ email: snap.email, name, phone: local?.phone || '' })
         setUserState((prev) => ({ name: name || prev.name || '', email: snap.email, phone: local?.phone || prev.phone || '' }))
+
+        // onAuthStateChanged restores whatever Firebase last persisted
+        // LOCALLY on this device — it doesn't hit the network. If you
+        // verify your email on one device, a different device (or a
+        // stale tab on this one) can keep showing "not verified"
+        // indefinitely since its local session was never told. Reload
+        // once from Firebase's servers whenever a restored session
+        // looks unverified, so it self-corrects instead of lying.
+        if (!snap.emailVerified) {
+          checkVerified().then((fresh) => { if (fresh?.emailVerified) setFbUser(fresh) })
+        }
       }
     })
     return unsub
