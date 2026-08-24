@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, LogOut, Pencil, ShieldAlert, Smartphone } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Banknote, Camera, Check, Clock, Loader2, LogOut, Pencil, ShieldAlert, Smartphone } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
-import { setPayoutMethod } from '../state/users.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, setPayoutMethod, usernameError } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
@@ -28,6 +28,43 @@ function Profile() {
   const [editingPayout, setEditingPayout] = useState(false)
   const [payoutForm, setPayoutForm] = useState(payoutMethod || emptyPayout)
   const [payoutSaved, setPayoutSaved] = useState(false)
+
+  // Claiming a username here covers accounts created before this feature
+  // existed, or a signup where the claim failed (e.g. lost a naming race).
+  // Once set it's shown read-only — no renames in v1 (see firestore.rules).
+  const [usernameDraft, setUsernameDraft] = useState('')
+  const [usernameStatus, setUsernameStatus] = useState('idle')
+  const [claimingUsername, setClaimingUsername] = useState(false)
+  const [usernameSaveError, setUsernameSaveError] = useState('')
+  const usernameCheckRef = useRef(0)
+
+  useEffect(() => {
+    if (!usernameDraft) { setUsernameStatus('idle'); return }
+    if (usernameError(usernameDraft)) { setUsernameStatus('invalid'); return }
+    setUsernameStatus('checking')
+    const myCheck = ++usernameCheckRef.current
+    const id = window.setTimeout(async () => {
+      const available = await isUsernameAvailable(usernameDraft)
+      if (usernameCheckRef.current !== myCheck) return
+      setUsernameStatus(available ? 'available' : 'taken')
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [usernameDraft, usernameCheckRef])
+
+  const saveUsername = async (e) => {
+    e.preventDefault()
+    setUsernameSaveError('')
+    setClaimingUsername(true)
+    try {
+      await claimUsername(user.email, user.name, usernameDraft)
+      await refreshAccountStatus()
+      setUsernameDraft('')
+    } catch (err) {
+      setUsernameSaveError(err.message)
+    } finally {
+      setClaimingUsername(false)
+    }
+  }
 
   // Same formula Dashboard uses (src/utils/trustScore.js), so the shareable
   // card below always matches what's shown live on the dashboard.
@@ -56,10 +93,10 @@ function Profile() {
     setEditingPayout(true)
   }
 
-  const savePayout = (e) => {
+  const savePayout = async (e) => {
     e.preventDefault()
-    setPayoutMethod(user.email, payoutForm)
-    refreshAccountStatus()
+    await setPayoutMethod(user.email, payoutForm)
+    await refreshAccountStatus()
     setEditingPayout(false)
     setPayoutSaved(true)
     window.setTimeout(() => setPayoutSaved(false), 1800)
@@ -82,8 +119,30 @@ function Profile() {
           <form className="profile-card" onSubmit={save}>
             <div className="profile-avatar-row">
               <div className="profile-avatar">{(form.name || 'M')[0].toUpperCase()}</div>
-              <div><b>{form.name || 'Your name'}</b><span>{form.email || 'No email yet'}</span></div>
+              <div><b>{form.name || 'Your name'}</b><span>{accountStatus?.username ? `@${accountStatus.username}` : (form.email || 'No email yet')}</span></div>
             </div>
+
+            {!accountStatus?.username && (
+              <div className="profile-field">
+                <label htmlFor="p-username">Username</label>
+                <div className={`auth-username-wrap ${usernameStatus}`}>
+                  <span className="auth-username-at">@</span>
+                  <input id="p-username" type="text" placeholder="amaka_o" value={usernameDraft} onChange={(e) => setUsernameDraft(normalizeUsername(e.target.value))} />
+                  <span className="auth-username-status">
+                    {usernameStatus === 'checking' && <Loader2 size={14} className="spin" />}
+                    {usernameStatus === 'available' && <Check size={14} />}
+                  </span>
+                </div>
+                {usernameSaveError && <small className="auth-username-hint">{usernameSaveError}</small>}
+                {usernameStatus === 'taken' && <small className="auth-username-hint">Already taken.</small>}
+                {usernameStatus === 'available' && (
+                  <button type="button" className="profile-username-claim" onClick={saveUsername} disabled={claimingUsername}>
+                    {claimingUsername ? 'Claiming…' : 'Claim @' + usernameDraft}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="profile-field"><label htmlFor="p-name">Full name</label><input id="p-name" value={form.name} onChange={update('name')} /></div>
             <div className="profile-field"><label htmlFor="p-email">Email</label><input id="p-email" type="email" value={form.email} onChange={update('email')} /></div>
             <div className="profile-field"><label htmlFor="p-phone">Phone number</label><input id="p-phone" type="tel" value={form.phone} onChange={update('phone')} /></div>

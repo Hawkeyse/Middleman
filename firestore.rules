@@ -1,0 +1,124 @@
+rules_version = '2';
+
+// Design: anything that moves money or is a team-only decision (approving a
+// verification, resolving a dispute, crediting a deposit, debiting a wallet
+// to accept a deal, marking a payout/refund complete) is written ONLY by the
+// server using the admin SDK (see api/_lib/firebaseAdmin.js), which bypasses
+// these rules entirely — the server verifies the caller's real Firebase ID
+// token (for a customer action) or the team passcode (for a team action)
+// before writing. These rules only need to cover the safe, non-financial,
+// self-service writes a signed-in user can make directly from the browser.
+//
+// Email (not uid) is the identity key throughout, matching how the rest of
+// the app already keys everything — Firebase ID tokens carry a verified
+// `email` claim we can check against.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.email;
+    }
+    function isMe(email) {
+      return signedIn() && myEmail() == email;
+    }
+
+    // Full profile — phone and payoutMethod (real bank/momo account details)
+    // live here, so this is self-read-only, not broadly readable. Self can
+    // update only the safe fields — status/warnings/banReason are team-only
+    // and never listed here, so a client write touching them is rejected
+    // outright. The team reads this collection through the admin SDK
+    // instead (bypasses rules), same as everything else team-side.
+    match /users/{email} {
+      allow read: if isMe(email);
+      allow create: if isMe(email);
+      allow update: if isMe(email) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'username', 'phone', 'payoutMethod']);
+      allow delete: if false;
+    }
+
+    // Public directory for username search — deliberately just {email, name},
+    // never phone/payoutMethod/status. Doc ID is the username itself so a
+    // prefix search can range-query on it directly. Read is open to anyone,
+    // signed in or not — the live "is this taken" check on the signup form
+    // runs before an account exists, so it can't require auth. Create-only
+    // (no renames in v1) and only by the account claiming that username.
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.email == myEmail();
+      allow update, delete: if false;
+    }
+
+    // A deal's lifecycle. Creating and the non-financial transitions
+    // (cancel/decline/dispute) are direct client writes; accepting (debits a
+    // wallet) and releasing/resolving (credits a seller) go through
+    // api/deals/*.js on the server instead, which is why they're absent here.
+    match /deals/{code} {
+      allow read: if resource.data.inviteType == 'link' || isMe(resource.data.sellerEmail) || isMe(resource.data.buyerEmail);
+      allow create: if isMe(request.resource.data.sellerEmail);
+      allow update: if
+        (isMe(resource.data.sellerEmail) &&
+          resource.data.status in ['pending-acceptance', 'invited'] &&
+          request.resource.data.status == 'cancelled' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])) ||
+        (isMe(resource.data.buyerEmail) &&
+          resource.data.status == 'invited' &&
+          request.resource.data.status == 'declined' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'declinedAt'])) ||
+        (isMe(resource.data.buyerEmail) &&
+          resource.data.status == 'paid' &&
+          request.resource.data.status == 'disputed' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputeReason', 'disputedAt']));
+      allow delete: if false;
+    }
+
+    // Identity verification. A user can submit/resubmit their own — always
+    // landing back in 'pending' — but can never set their own status to
+    // verified/declined; only the team route can do that.
+    match /verifications/{email} {
+      allow read: if isMe(email);
+      allow write: if isMe(email) && request.resource.data.status == 'pending';
+    }
+
+    // Money. Never written by the client, ever — only read by the account
+    // they belong to.
+    match /wallet_entries/{id} {
+      allow read: if isMe(resource.data.email);
+      allow write: if false;
+    }
+    match /transactions/{id} {
+      allow read: if isMe(resource.data.buyerEmail) || isMe(resource.data.sellerEmail);
+      allow write: if false;
+    }
+    match /refund_requests/{id} {
+      allow read: if isMe(resource.data.email);
+      allow write: if false;
+    }
+    match /payout_requests/{id} {
+      allow read: if isMe(resource.data.email);
+      allow write: if false;
+    }
+
+    // Support chat. A customer can read/write their own thread and send
+    // their own messages/typing pings; joining as an agent, closing a
+    // thread, or replying as the agent all go through the team-passcode
+    // server route instead (Firestore rules have no way to know someone
+    // typed the right passcode, since /team isn't a real Firebase login).
+    match /chat_threads/{id} {
+      allow read: if isMe(resource.data.customerEmail);
+      allow create: if isMe(request.resource.data.customerEmail);
+      allow update: if isMe(resource.data.customerEmail) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['customerTypingAt']);
+
+      match /messages/{messageId} {
+        allow read: if isMe(get(/databases/$(database)/documents/chat_threads/$(id)).data.customerEmail);
+        allow create: if isMe(get(/databases/$(database)/documents/chat_threads/$(id)).data.customerEmail) &&
+          request.resource.data.role == 'customer';
+        allow update, delete: if false;
+      }
+    }
+  }
+}

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Loader2, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Check, Loader2, Mail, ShieldCheck, X } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
 import { useTransitionNavigate } from '../hooks/useTransitionNavigate.js'
 import { signUp, resendVerification, authErrorMessage } from '../utils/auth.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, usernameError } from '../state/users.js'
 import './Auth.css'
 
 const RESEND_COOLDOWN = 45
@@ -12,15 +13,36 @@ const POLL_INTERVAL = 3000
 function Signup() {
   const navigate = useTransitionNavigate()
   const { setUser, refreshEmailVerified } = useAppState()
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', username: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // 'idle' | 'checking' | 'available' | 'taken' | 'invalid'
+  const [usernameStatus, setUsernameStatus] = useState('idle')
+  const usernameCheckRef = useRef(0)
 
   const [stage, setStage] = useState('form') // 'form' | 'pending' | 'done'
   const [cooldown, setCooldown] = useState(0)
   const pollRef = useRef(null)
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  // Debounced live "is this taken" check as they type — the real guarantee
+  // against a race is the transaction in claimUsername at submit time, this
+  // is just fast feedback so they're not surprised later.
+  useEffect(() => {
+    const raw = form.username
+    if (!raw) { setUsernameStatus('idle'); return }
+    if (usernameError(raw)) { setUsernameStatus('invalid'); return }
+    setUsernameStatus('checking')
+    const myCheck = ++usernameCheckRef.current
+    const id = window.setTimeout(async () => {
+      const available = await isUsernameAvailable(raw)
+      if (usernameCheckRef.current !== myCheck) return // a newer keystroke superseded this check
+      setUsernameStatus(available ? 'available' : 'taken')
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [form.username])
 
   const goToLogin = (e) => { e.preventDefault(); navigate('/login') }
 
@@ -55,10 +77,13 @@ function Signup() {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!form.name || !form.email || !form.phone || !form.password) {
+    if (!form.name || !form.email || !form.phone || !form.password || !form.username) {
       setError('Fill in every field to create your account.')
       return
     }
+    const unameErr = usernameError(form.username)
+    if (unameErr) { setError(unameErr); return }
+    if (usernameStatus === 'taken') { setError('That username is already taken.'); return }
     if (form.password.length < 6) {
       setError('Password should be at least 6 characters.')
       return
@@ -68,6 +93,10 @@ function Signup() {
     try {
       await signUp(form.name, form.email, form.password)
       setUser({ name: form.name, email: form.email, phone: form.phone })
+      // Doesn't block the rest of signup if it fails (e.g. someone else won
+      // the race a moment ago) — the account still exists either way, and a
+      // username can be set later from Profile.
+      try { await claimUsername(form.email, form.name, form.username) } catch { /* handled from Profile later */ }
       setStage('pending')
       startCooldown()
     } catch (err) {
@@ -151,6 +180,21 @@ function Signup() {
 
               <form onSubmit={submit}>
                 <div className="auth-field"><label htmlFor="name">Full name</label><input id="name" type="text" placeholder="Amaka Owusu" value={form.name} onChange={update('name')} /></div>
+                <div className="auth-field">
+                  <label htmlFor="username">Username</label>
+                  <div className={`auth-username-wrap ${usernameStatus}`}>
+                    <span className="auth-username-at">@</span>
+                    <input id="username" type="text" autoCapitalize="none" placeholder="amaka_o" value={form.username} onChange={(e) => update('username')({ target: { value: normalizeUsername(e.target.value) } })} />
+                    <span className="auth-username-status">
+                      {usernameStatus === 'checking' && <Loader2 size={14} className="spin" />}
+                      {usernameStatus === 'available' && <Check size={14} />}
+                      {usernameStatus === 'taken' && <X size={14} />}
+                    </span>
+                  </div>
+                  {usernameStatus === 'taken' && <small className="auth-username-hint">Already taken.</small>}
+                  {usernameStatus === 'invalid' && form.username && <small className="auth-username-hint">3-20 characters: lowercase letters, numbers, underscores.</small>}
+                  {usernameStatus === 'available' && <small className="auth-username-hint ok">It's yours.</small>}
+                </div>
                 <div className="auth-field"><label htmlFor="email">Email</label><input id="email" type="email" placeholder="you@example.com" value={form.email} onChange={update('email')} /></div>
                 <div className="auth-field"><label htmlFor="phone">Phone number</label><input id="phone" type="tel" placeholder="+233 24 000 0000" value={form.phone} onChange={update('phone')} /></div>
                 <div className="auth-field"><label htmlFor="password">Password</label><input id="password" type="password" placeholder="At least 6 characters" value={form.password} onChange={update('password')} /></div>

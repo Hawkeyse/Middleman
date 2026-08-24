@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { listVerifications, setVerificationStatus } from '../state/verifications.js'
 import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
-import { listUsers, warnUser, banUser, unbanUser } from '../state/users.js'
+import { teamFetch } from '../utils/teamFetch.js'
 import { listAllTransactions, logTransaction } from '../state/transactions.js'
 import { listAllDeals, resolveDispute } from '../state/deals.js'
 import { listRefundRequests, completeRefund } from '../state/wallet.js'
@@ -17,7 +17,6 @@ import { money, symbolFor } from '../utils/currencies.js'
 import ChatThread from '../components/ChatThread.jsx'
 import './Team.css'
 
-const PASSCODE = 'middleman-team' // demo-only gate — real deployment needs proper admin auth
 const docLabels = { 'ghana-card': 'Ghana Card', 'national-id': 'National ID Card', passport: 'International Passport', license: "Driver's License" }
 const filters = ['pending', 'verified', 'declined', 'all']
 
@@ -25,15 +24,29 @@ function TeamGate({ onUnlock }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
 
-  const submit = (e) => {
+  // Verified server-side (api/team/login.js) against TEAM_PASSCODE — the old
+  // version compared against a passcode sitting in plaintext in the shipped
+  // JS bundle, readable by anyone via view-source.
+  const submit = async (e) => {
     e.preventDefault()
-    if (code === PASSCODE) {
+    setError('')
+    setChecking(true)
+    try {
+      const res = await fetch('/api/team/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-team-passcode': code },
+      })
+      if (!res.ok) throw new Error()
       sessionStorage.setItem('mm_team_unlocked', 'true')
       sessionStorage.setItem('mm_team_agent_name', name.trim() || 'Middleman Team')
+      sessionStorage.setItem('mm_team_code', code)
       onUnlock()
-    } else {
+    } catch {
       setError('Wrong passcode.')
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -47,7 +60,7 @@ function TeamGate({ onUnlock }) {
         <form onSubmit={submit}>
           <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
           <input type="password" value={code} onChange={(e) => { setCode(e.target.value); setError('') }} placeholder="Team passcode" />
-          <button type="submit">Unlock</button>
+          <button type="submit" disabled={checking}>{checking ? 'Checking…' : 'Unlock'}</button>
         </form>
         <Link className="team-gate-back" to="/">Back to Middleman</Link>
       </div>
@@ -87,7 +100,7 @@ function Team() {
   const refresh = () => {
     setRecords(listVerifications())
     setThreads(listThreads())
-    setUsers(listUsers())
+    teamFetch('/api/team/users').then((data) => setUsers(data.users)).catch(() => {})
     setTransactions(listAllTransactions())
     setDeals(listAllDeals())
     setRefunds(listRefundRequests())
@@ -163,9 +176,9 @@ function Team() {
   const joinChat = (email) => { joinThread(email, agentName); refresh() }
   const closeChat = (email) => { closeThread(email); refresh() }
 
-  const warn = (email) => { warnUser(email, actionDraft || 'No reason given.'); setActionDraft(''); refresh() }
-  const ban = (email) => { banUser(email, actionDraft || 'Violated Middleman terms.'); setActionDraft(''); refresh() }
-  const unban = (email) => { unbanUser(email); refresh() }
+  const warn = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.' } }).then(refresh).catch(() => {}); setActionDraft('') }
+  const ban = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
+  const unban = (email) => { teamFetch('/api/team/users', { method: 'POST', body: { action: 'unban', email } }).then(refresh).catch(() => {}) }
 
   if (!unlocked) return <TeamGate onUnlock={() => setUnlocked(true)} />
 

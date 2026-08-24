@@ -43,13 +43,15 @@ export function AppStateProvider({ children }) {
       setFbUser(snap)
       setAuthChecked(true)
       if (snap) {
-        const local = getUser(snap.email)
-        const name = snap.displayName || local?.name || ''
-        // Keeps the users.js directory entry alive for a returning session on
-        // a fresh browser too, not just at signup — otherwise anything keyed
-        // off it (payout method, warn/ban) silently has nothing to attach to.
-        upsertUser({ email: snap.email, name, phone: local?.phone || '' })
-        setUserState((prev) => ({ name: name || prev.name || '', email: snap.email, phone: local?.phone || prev.phone || '' }))
+        // Keeps the users/{email} directory entry alive for a returning
+        // session on a fresh browser too, not just at signup — otherwise
+        // anything keyed off it (payout method, warn/ban) silently has
+        // nothing to attach to.
+        getUser(snap.email).then((local) => {
+          const name = snap.displayName || local?.name || ''
+          upsertUser({ email: snap.email, name, phone: local?.phone || '' })
+          setUserState((prev) => ({ name: name || prev.name || '', email: snap.email, phone: local?.phone || prev.phone || '' }))
+        })
 
         // onAuthStateChanged restores whatever Firebase last persisted
         // LOCALLY on this device — it doesn't hit the network. If you
@@ -95,8 +97,11 @@ export function AppStateProvider({ children }) {
 
   // Same idea for warn/ban decisions made from /team — re-read on user change,
   // and poll lightly so a ban issued mid-session actually locks the account out.
-  const refreshAccountStatus = useCallback(() => {
-    setAccountStatus(user.email ? getUser(user.email) : null)
+  const refreshAccountStatus = useCallback(async () => {
+    if (!user.email) { setAccountStatus(null); return null }
+    const fresh = await getUser(user.email)
+    setAccountStatus(fresh)
+    return fresh
   }, [user.email])
 
   useEffect(() => {
