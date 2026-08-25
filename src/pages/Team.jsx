@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Flag, Headset, IdCard,
+  ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Check, Flag, Headset, IdCard,
   LayoutDashboard, Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
@@ -319,13 +319,13 @@ function Team() {
                 </div>
 
                 {selectedUser.status === 'banned' ? (
-                  <div className="team-decision declined"><Ban size={16} /><span>Banned{selectedUser.banReason ? ` — ${selectedUser.banReason}` : ''}{selectedUser.bannedAt ? ` on ${new Date(selectedUser.bannedAt).toLocaleDateString()}` : ''}</span></div>
+                  <div className="team-decision declined"><Icon name="ban" size={16} /><span>Banned{selectedUser.banReason ? ` — ${selectedUser.banReason}` : ''}{selectedUser.bannedAt ? ` on ${new Date(selectedUser.bannedAt).toLocaleDateString()}` : ''}</span></div>
                 ) : (
                   <div className="team-actions">
                     <input placeholder="Reason for warning or ban" value={actionDraft} onChange={(e) => setActionDraft(e.target.value)} />
                     <div>
                       <button className="team-warn" onClick={() => warn(selectedUser.email)}><TriangleAlert size={15} /> Warn</button>
-                      <button className="team-decline" onClick={() => ban(selectedUser.email)}><Ban size={15} /> Ban</button>
+                      <button className="team-decline" onClick={() => ban(selectedUser.email)}><Icon name="ban" size={15} /> Ban</button>
                     </div>
                   </div>
                 )}
@@ -409,7 +409,7 @@ function Team() {
                   </div>
                   <span className="team-tx-date">{new Date(r.requestedAt).toLocaleString()}</span>
                   {r.status === 'pending'
-                    ? <button className="team-approve" onClick={() => (r.kind === 'payout' ? markPayoutSent(r) : markRefundSent(r.id))}><Check size={14} /> Mark as sent</button>
+                    ? <button className="team-approve" onClick={() => (r.kind === 'payout' ? markPayoutSent(r) : markRefundSent(r.id))}><Check size={14} /> Sent {symbolFor(r.currency)} {money(r.amount)} via MoMo</button>
                     : <span className="team-badge verified">sent</span>}
                 </div>
               ))}

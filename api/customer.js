@@ -66,6 +66,12 @@ async function acceptDeal(buyerEmail, { code, name }) {
     if (deal.status !== 'pending-acceptance') {
       throw Object.assign(new Error('This deal is no longer available.'), { status: 409 })
     }
+    // Otherwise a seller could accept their own invite link to fabricate a
+    // "completed deal" against themselves and inflate their own trust score
+    // for free — see calcTrustScore's +5-per-completed-deal in trustScore.js.
+    if (deal.sellerEmail === buyerEmail) {
+      throw Object.assign(new Error("You can't accept your own deal invite."), { status: 403 })
+    }
 
     const walletQuery = db.collection('wallet_entries').where('email', '==', buyerEmail).where('currency', '==', deal.currency)
     const walletSnap = await tx.get(walletQuery)

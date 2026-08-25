@@ -49,6 +49,7 @@ function Invite() {
   const accept = async () => {
     if (!authed) { navigate('/signup', { state: { inviteCode: code } }); return }
     if (verification !== 'verified') { navigate('/verify', { state: { from: `/invite/${code}` } }); return }
+    if (deal.sellerEmail === user.email) { setError("You can't accept your own deal invite."); return }
     setError('')
     setAccepting(true)
     const balance = await getWalletBalance(user.email, deal.currency)
