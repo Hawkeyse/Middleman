@@ -98,7 +98,10 @@ export function AppStateProvider({ children }) {
   useEffect(() => {
     refreshVerification()
     if (!authed) return
-    const id = window.setInterval(refreshVerification, 3000)
+    // Was 3s — slowed down after the project hit Firestore's daily
+    // Spark-plan read quota; this runs on every authed page the whole
+    // session, so its interval matters a lot for total read volume.
+    const id = window.setInterval(refreshVerification, 8000)
     return () => window.clearInterval(id)
   }, [refreshVerification, authed])
 
@@ -114,7 +117,9 @@ export function AppStateProvider({ children }) {
   useEffect(() => {
     refreshAccountStatus()
     if (!authed) return
-    const id = window.setInterval(refreshAccountStatus, 3000)
+    // Was 3s — slowed down after the project hit Firestore's daily
+    // Spark-plan read quota; same reasoning as refreshVerification above.
+    const id = window.setInterval(refreshAccountStatus, 8000)
     return () => window.clearInterval(id)
   }, [refreshAccountStatus, authed])
 

@@ -33,7 +33,10 @@ function SupportChat({ email, name, onClose }) {
   }, [email, sync])
 
   useEffect(() => {
-    const id = window.setInterval(sync, 2000)
+    // Was 2s — slowed down after the project hit Firestore's daily Spark-
+    // plan read quota; still fast enough to feel live inside an open
+    // conversation without hammering reads the whole time it's open.
+    const id = window.setInterval(sync, 5000)
     return () => window.clearInterval(id)
   }, [sync])
 

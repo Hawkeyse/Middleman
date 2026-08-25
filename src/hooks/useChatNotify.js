@@ -26,7 +26,12 @@ export function useChatNotify({ email, role, title = 'New message', active = tru
     }
 
     check()
-    const id = window.setInterval(check, 3000)
+    // This hook stays mounted (and polling) on every authed page the whole
+    // time it's active, not just while a chat panel is open — kept slower
+    // than SupportChat's own in-conversation poll to limit background
+    // Firestore read volume (see api/_lib/firebaseAdmin.js's project having
+    // hit its daily Spark-plan quota from polling like this at 3s).
+    const id = window.setInterval(check, 8000)
     return () => {
       cancelled = true
       window.clearInterval(id)

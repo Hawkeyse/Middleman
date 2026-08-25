@@ -109,7 +109,11 @@ function Team() {
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
     if (!unlocked) return
-    const id = window.setInterval(refresh, 4000)
+    // Was 4s — slowed down after the project hit Firestore's daily
+    // Spark-plan read quota. refresh() fires 8 requests at once (each
+    // reading a full collection), so this was by far the heaviest poller —
+    // only staff have this page open, so slower is an easy tradeoff here.
+    const id = window.setInterval(refresh, 12000)
     return () => window.clearInterval(id)
   }, [unlocked])
 

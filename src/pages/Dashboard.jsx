@@ -117,7 +117,10 @@ function Dashboard() {
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => {
-    const id = window.setInterval(loadData, 4000)
+    // Was 4s — slowed down after the project hit Firestore's daily
+    // Spark-plan read quota; each tick is 5 queries (deals, transactions,
+    // 3x wallet balance), so this was one of the heavier pollers.
+    const id = window.setInterval(loadData, 10000)
     return () => window.clearInterval(id)
   }, [loadData])
 
