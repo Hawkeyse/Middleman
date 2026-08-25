@@ -117,7 +117,7 @@ function Signup() {
     setSubmitting(true)
     try {
       await signUp(form.name, form.email, form.password)
-      setUser({ name: form.name, email: form.email })
+      setUser({ name: form.name, email: form.email, countryIso: form.countryIso })
       // Doesn't block the rest of signup if it fails (e.g. someone else won
       // the race a moment ago) — the account still exists either way, and a
       // username can be set later from Profile.

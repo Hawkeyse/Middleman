@@ -5,6 +5,7 @@ import {
   Link2, LockKeyhole, Loader2, Plus, Send, ShieldCheck, Sparkles,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
@@ -12,7 +13,8 @@ import { listTransactionsFor } from '../state/transactions.js'
 import { creditDeposit, getWalletBalance, requestRefund } from '../state/wallet.js'
 import { requestPayout } from '../state/payoutRequests.js'
 import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
-import { CURRENCIES, money, symbolFor } from '../utils/currencies.js'
+import { CURRENCIES, currencyForCountry, money, symbolFor } from '../utils/currencies.js'
+import { COUNTRY_CODES } from '../utils/countryCodes.js'
 import { calcTrustScore } from '../utils/trustScore.js'
 import SupportChat from '../components/SupportChat.jsx'
 import './Dashboard.css'
@@ -224,7 +226,7 @@ function Dashboard() {
     loadData()
   }
 
-  const openDeposit = () => { setDepositForm({ currency: 'GHS', amount: '' }); setDepositError(''); setDepositOpen(true) }
+  const openDeposit = () => { setDepositForm({ currency: homeCurrency, amount: '' }); setDepositError(''); setDepositOpen(true) }
   const closeDeposit = () => { if (!depositing) setDepositOpen(false) }
   const submitDeposit = async (e) => {
     e.preventDefault()
@@ -247,7 +249,7 @@ function Dashboard() {
     }
   }
 
-  const openRefund = () => { setRefundForm({ currency: 'GHS', amount: '', note: '' }); setRefundError(''); setRefundSent(false); setRefundOpen(true) }
+  const openRefund = () => { setRefundForm({ currency: homeCurrency, amount: '', note: '' }); setRefundError(''); setRefundSent(false); setRefundOpen(true) }
   const submitRefund = async (e) => {
     e.preventDefault()
     const amt = Number(refundForm.amount)
@@ -264,7 +266,7 @@ function Dashboard() {
     }
   }
 
-  const openPayoutRequest = () => { setPayoutRequestForm({ currency: 'GHS', amount: '', note: '' }); setPayoutRequestError(''); setPayoutRequestSent(false); setPayoutRequestOpen(true) }
+  const openPayoutRequest = () => { setPayoutRequestForm({ currency: homeCurrency, amount: '', note: '' }); setPayoutRequestError(''); setPayoutRequestSent(false); setPayoutRequestOpen(true) }
   const submitPayoutRequest = async (e) => {
     e.preventDefault()
     const amt = Number(payoutRequestForm.amount)
@@ -288,6 +290,12 @@ function Dashboard() {
     else setGateOpen(true)
   }
 
+  // Derived from the country picked at signup (see countryIso on the user
+  // doc) — defaults new amounts to what they'd actually use instead of
+  // always assuming GHS.
+  const homeCountry = COUNTRY_CODES.find((c) => c.iso2 === accountStatus?.countryIso) || null
+  const homeCurrency = currencyForCountry(accountStatus?.countryIso)
+
   // Selling requires a payout method on file too — otherwise a release has
   // nowhere for the team to actually send the seller's money.
   const hasPayoutMethod = !!accountStatus?.payoutMethod
@@ -296,7 +304,8 @@ function Dashboard() {
     else setPayoutGateOpen(true)
   })
 
-  const closeNewDeal = () => { setNewDealOpen(false); setNewDealStep('form'); setDealForm({ itemName: '', amount: '', currency: 'GHS', buyerContact: '', image: null }); setCreatedDeal(null) }
+  const openNewDeal = () => { setDealForm((f) => ({ ...f, currency: homeCurrency })); setNewDealOpen(true) }
+  const closeNewDeal = () => { setNewDealOpen(false); setNewDealStep('form'); setDealForm({ itemName: '', amount: '', currency: homeCurrency, buyerContact: '', image: null }); setCreatedDeal(null) }
 
   const handleDealImage = (e) => {
     const file = e.target.files?.[0]
@@ -341,7 +350,7 @@ function Dashboard() {
   const heroAction = () => {
     if (!activeDeal) {
       if (mode === 'buyer') requireVerified(openDeposit)
-      else requireSellerReady(() => setNewDealOpen(true))
+      else requireSellerReady(() => openNewDeal())
       return
     }
     document.getElementById('current-deal')?.scrollIntoView({ behavior: 'smooth' })
@@ -358,7 +367,7 @@ function Dashboard() {
     <div className="app-shell">
       <aside className="sidebar">
         <button className="brand-lockup" onClick={() => navigate('/dashboard')}><div className="brand-mark"><img src="/middleman-logo.png" alt="Middleman" /></div><div><strong>middleman</strong><span>Pay safe. Receive first</span></div></button>
-        <div className="workspace-switcher"><span className="avatar avatar-blue">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name ? `${user.name.split(' ')[0]}'s space` : 'Your space'}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
+        <div className="workspace-switcher"><Avatar name={user.name || 'A'} avatarUrl={accountStatus?.avatarUrl} size={28} className="avatar avatar-blue" /><span><b>{user.name ? `${user.name.split(' ')[0]}'s space` : 'Your space'}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
         <div className="mode-toggle">
           <button className={mode === 'seller' ? 'active' : ''} onClick={() => setMode('seller')}><Icon name="selling" size={14} /> Selling</button>
           <button className={mode === 'buyer' ? 'active' : ''} onClick={() => setMode('buyer')}><Icon name="buying" size={14} /> Buying</button>
@@ -371,7 +380,7 @@ function Dashboard() {
           {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><Icon name={verification === 'pending' ? 'pending' : 'alarm'} size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
           {verification === 'verified' && <div className="trust-note"><Icon name="verified" size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
           <button className="nav-item" onClick={() => setSupportOpen(true)}><Icon name="support" size={18} />Help center</button>
-          <Link className="profile" to="/profile"><span className="avatar avatar-orange">{(user.name || 'A')[0].toUpperCase()}</span><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
+          <Link className="profile" to="/profile"><Avatar name={user.name || 'A'} avatarUrl={accountStatus?.avatarUrl} size={28} className="avatar avatar-orange" /><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
         </div>
       </aside>
 
@@ -385,11 +394,11 @@ function Dashboard() {
               <p>Thank you for checking in and for your interest in Middleman!</p>
             </div>
           </div>
-        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><Icon name="profile" size={19} /></Link><button className="support-button" onClick={() => setSupportOpen(true)}><Icon name="support" size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Icon name="wallet" size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => setNewDealOpen(true))}><Plus size={17} /> New deal</button>}</div></header>
+        )}</div><Link className="icon-button mobile-profile-link" to="/profile" aria-label="Profile"><Icon name="profile" size={19} /></Link><button className="support-button" onClick={() => setSupportOpen(true)}><Icon name="support" size={16} /> <span className="support-button-label">Support</span>{unreadSupport > 0 && <i className="unread-dot">{unreadSupport}</i>}</button>{mode === 'buyer' ? <button className="new-deal" onClick={() => requireVerified(openDeposit)}><Icon name="wallet" size={17} /> Deposit funds</button> : <button className="new-deal" onClick={() => requireSellerReady(() => openNewDeal())}><Plus size={17} /> New deal</button>}</div></header>
 
         {accountStatus?.status === 'warned' && !warningDismissed && <div className="warning-banner animate-in"><Icon name="alarm" size={16} /><span><b>Warning from the Middleman team:</b> {accountStatus.warnings[accountStatus.warnings.length - 1]?.reason}</span><button onClick={() => setWarningDismissed(true)} aria-label="Dismiss"><Icon name="close" size={14} /></button></div>}
 
-        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</div><h1>{timeOfDayGreeting()}{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Icon name="wallet" size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Icon name="refund" size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Icon name="refund" size={15} /></button>}</div></div>
+        <div className="page-intro animate-in" style={{ animationDelay: '30ms' }}><div><div className="eyebrow"><Sparkles size={15} /> {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}{homeCountry && <span className="eyebrow-flag" title={homeCountry.name}>{homeCountry.flag}</span>}</div><h1>{timeOfDayGreeting()}{user.name ? `, ${user.name.split(' ')[0]}` : ''}<span>.</span></h1><p>Keep your deals moving with confidence.</p></div><div className="balance-pill"><div className="balance-icon"><Icon name="wallet" size={18} /></div><span><small>{mode === 'buyer' ? 'Wallet balance' : 'Available balance'}</small><b>{mode === 'buyer' ? walletBalanceDisplay : balanceDisplay}</b></span>{mode === 'buyer' ? <button className="wallet-refund-link" title="Request a refund" onClick={() => requireVerified(openRefund)}><Icon name="refund" size={15} /></button> : <button className="wallet-refund-link" title="Request payout" onClick={() => requireVerified(openPayoutRequest)}><Icon name="refund" size={15} /></button>}</div></div>
 
         {activeTab === 'Wallet' ? (
           <section className="wallet-view animate-in" style={{ animationDelay: '110ms' }}>

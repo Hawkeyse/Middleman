@@ -18,7 +18,7 @@ function roundRect(ctx, x, y, w, h, r) {
 // Hand-drawn on canvas rather than pulled in via an html-to-image library —
 // the card is simple enough, and this avoids a new dependency just to let
 // someone download a PNG of their own stats.
-function TrustCard({ name, username, trustScore, boughtCount, soldCount, verified, memberSince }) {
+function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince }) {
   const canvasRef = useRef(null)
   const [ready, setReady] = useState(false)
 
@@ -26,6 +26,8 @@ function TrustCard({ name, username, trustScore, boughtCount, soldCount, verifie
     let cancelled = false
     const logo = new Image()
     logo.src = '/middleman-logo.png'
+    const photo = new Image()
+    if (avatarUrl) photo.src = avatarUrl
 
     const draw = () => {
       const canvas = canvasRef.current
@@ -98,20 +100,30 @@ function TrustCard({ name, username, trustScore, boughtCount, soldCount, verifie
       }
 
       const avatarCx = 72 + 48, avatarCy = 180 + 48
-      const avatarGrad = ctx.createLinearGradient(avatarCx - 48, avatarCy - 48, avatarCx + 48, avatarCy + 48)
-      avatarGrad.addColorStop(0, '#4c7cff')
-      avatarGrad.addColorStop(1, '#7a5cff')
-      ctx.fillStyle = avatarGrad
-      ctx.beginPath()
-      ctx.arc(avatarCx, avatarCy, 48, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#ffffff'
-      ctx.font = "700 44px 'Space Grotesk', sans-serif"
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText((name || 'M')[0].toUpperCase(), avatarCx, avatarCy + 3)
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
+      if (photo.complete && photo.naturalWidth) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(avatarCx, avatarCy, 48, 0, Math.PI * 2)
+        ctx.clip()
+        const side = Math.min(photo.naturalWidth, photo.naturalHeight)
+        ctx.drawImage(photo, (photo.naturalWidth - side) / 2, (photo.naturalHeight - side) / 2, side, side, avatarCx - 48, avatarCy - 48, 96, 96)
+        ctx.restore()
+      } else {
+        const avatarGrad = ctx.createLinearGradient(avatarCx - 48, avatarCy - 48, avatarCx + 48, avatarCy + 48)
+        avatarGrad.addColorStop(0, '#4c7cff')
+        avatarGrad.addColorStop(1, '#7a5cff')
+        ctx.fillStyle = avatarGrad
+        ctx.beginPath()
+        ctx.arc(avatarCx, avatarCy, 48, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#ffffff'
+        ctx.font = "700 44px 'Space Grotesk', sans-serif"
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText((name || 'M')[0].toUpperCase(), avatarCx, avatarCy + 3)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+      }
 
       const nameX = 72 + 116
       ctx.fillStyle = '#ffffff'
@@ -165,12 +177,20 @@ function TrustCard({ name, username, trustScore, boughtCount, soldCount, verifie
       if (!cancelled) setReady(true)
     }
 
-    const start = () => { if (logo.complete) draw(); else logo.onload = draw }
+    // Draws once the logo (always) and the photo (only if there is one) have
+    // both settled — "settled" includes a failed photo load, so a broken
+    // avatarUrl falls back to the initial instead of blocking the card.
+    let pending = avatarUrl ? 2 : 1
+    const settle = () => { if (--pending <= 0) draw() }
+    const start = () => {
+      if (logo.complete) settle(); else logo.onload = logo.onerror = settle
+      if (avatarUrl) { if (photo.complete) settle(); else photo.onload = photo.onerror = settle }
+    }
     if (document.fonts?.ready) document.fonts.ready.then(start)
     else start()
 
     return () => { cancelled = true }
-  }, [name, username, trustScore, boughtCount, soldCount, verified, memberSince])
+  }, [name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince])
 
   const download = () => {
     const canvas = canvasRef.current

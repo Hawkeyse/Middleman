@@ -5,6 +5,10 @@ button { font: inherit; cursor: pointer; }
 
 .icon-img{display:inline-block;vertical-align:middle;object-fit:contain;flex:0 0 auto}
 
+/* uploaded profile picture — layered onto whatever avatar box class the
+   caller already uses (see Avatar.jsx), which still owns size/radius */
+.avatar-photo{display:block;object-fit:cover}
+
 /* shared "activity" icon badge — used by Dashboard (activity feed, wallet) and Team (transactions) */
 .activity-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;flex:0 0 auto}
 .activity-icon.green{color:var(--green);background:#e5f8f0}

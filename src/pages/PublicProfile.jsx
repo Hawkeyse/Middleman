@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Loader2, PackageX, ShieldCheck } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { getPublicProfile } from '../state/users.js'
 import { calcTrustScore } from '../utils/trustScore.js'
 import './PublicProfile.css'
@@ -47,7 +48,7 @@ function PublicProfile() {
     <div className="pubprofile-page">
       <div className="pubprofile-card">
         <Link className="pubprofile-back-link" to="/"><ArrowLeft size={14} /> Middleman</Link>
-        <div className="pubprofile-avatar">{(profile.name || profile.username || '?')[0].toUpperCase()}</div>
+        <Avatar name={profile.name || profile.username} avatarUrl={profile.avatarUrl} size={64} className="pubprofile-avatar" />
         <h2>{profile.name || `@${profile.username}`}</h2>
         <div className="pubprofile-handle">
           @{profile.username}

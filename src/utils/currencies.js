@@ -6,6 +6,17 @@ export const CURRENCIES = {
 
 export const DEFAULT_CURRENCY = 'GHS'
 
+// Only 3 currencies actually move through the app's payment providers (see
+// utils/payments.js) — GHS on Paystack, everything else on Flutterwave —
+// so "their own currency" collapses to a 3-way split by home country
+// (captured at signup, see countryIso on the user doc) rather than needing
+// a real per-country currency table.
+export function currencyForCountry(iso2) {
+  if (iso2 === 'GH') return 'GHS'
+  if (iso2 === 'NG') return 'NGN'
+  return 'USD'
+}
+
 export function symbolFor(currency) {
   return CURRENCIES[currency]?.symbol || CURRENCIES[DEFAULT_CURRENCY].symbol
 }

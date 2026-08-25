@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Banknote, Camera, Check, Loader2, LogOut, Pencil, Smartphone } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { useAppState } from '../state/AppState.jsx'
-import { claimUsername, isUsernameAvailable, normalizeUsername, renameUsername, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
+import { claimUsername, isUsernameAvailable, normalizeUsername, renameUsername, setAvatar, setPayoutMethod, suggestUsernames, usernameError } from '../state/users.js'
 import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
+import { resizeImageToDataUrl } from '../utils/resizeImage.js'
 import TrustCard from '../components/TrustCard.jsx'
 import './Profile.css'
 
@@ -150,6 +152,28 @@ function Profile() {
     window.setTimeout(() => setSaved(false), 1800)
   }
 
+  // Saves immediately on pick rather than waiting for the form's own "Save
+  // changes" — a profile picture reads as its own action, not something
+  // that should need a second confirm click.
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const uploadAvatar = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAvatarError('')
+    setAvatarSaving(true)
+    try {
+      const dataUrl = await resizeImageToDataUrl(file)
+      await setAvatar(user.email, dataUrl)
+      await refreshAccountStatus()
+    } catch (err) {
+      setAvatarError(err.message || 'Could not update your photo. Please try again.')
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
   const startEditPayout = () => {
     setPayoutForm(payoutMethod || emptyPayout)
     setEditingPayout(true)
@@ -180,9 +204,14 @@ function Profile() {
         <div className="profile-grid">
           <form className="profile-card" onSubmit={save}>
             <div className="profile-avatar-row">
-              <div className="profile-avatar">{(form.name || 'M')[0].toUpperCase()}</div>
+              <label className="profile-avatar-upload" title="Change photo">
+                <Avatar name={form.name} avatarUrl={accountStatus?.avatarUrl} size={52} className="profile-avatar" />
+                <span className="profile-avatar-edit">{avatarSaving ? <Loader2 size={14} className="spin" /> : <Camera size={14} />}</span>
+                <input type="file" accept="image/*" onChange={uploadAvatar} hidden disabled={avatarSaving} />
+              </label>
               <div><b>{form.name || 'Your name'}</b><span>{accountStatus?.username ? `@${accountStatus.username}` : (form.email || 'No email yet')}</span></div>
             </div>
+            {avatarError && <p className="invite-error"><Icon name="alarm" size={13} /> {avatarError}</p>}
 
             {!accountStatus?.username && (
               <div className="profile-field">
@@ -305,6 +334,7 @@ function Profile() {
             <TrustCard
               name={user.name}
               username={accountStatus?.username}
+              avatarUrl={accountStatus?.avatarUrl}
               trustScore={trustScoreTarget}
               boughtCount={boughtCount}
               soldCount={soldCount}

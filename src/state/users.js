@@ -17,16 +17,19 @@ export { normalizeUsername, usernameError }
 // creates the full record (status/warnings start fresh); on later writes it
 // only touches the safe fields — status/warnings/banReason are team-only and
 // the security rules reject a client write that touches them.
-export async function upsertUser({ email, name, phone }) {
+export async function upsertUser({ email, name, phone, countryIso }) {
   if (!email) return null
   const ref = doc(db, 'users', email)
   const snap = await getDoc(ref)
   const existing = snap.exists() ? snap.data() : null
 
   const payload = existing
-    ? { name: name || existing.name || '', phone: phone || existing.phone || '' }
+    ? {
+        name: name || existing.name || '', phone: phone || existing.phone || '',
+        countryIso: countryIso || existing.countryIso || null,
+      }
     : {
-        email, name: name || '', username: '', phone: phone || '',
+        email, name: name || '', username: '', phone: phone || '', countryIso: countryIso || null,
         payoutMethod: null,
         status: 'active', warnings: [], banReason: null, bannedAt: null,
         createdAt: new Date().toISOString(), usernameHistory: [], lastUsernameChangeAt: null,
@@ -56,6 +59,19 @@ export async function setPayoutMethod(email, method) {
   if (!email) return null
   await setDoc(doc(db, 'users', email), { payoutMethod: method }, { merge: true })
   return method
+}
+
+// Profile picture — a resized/compressed data URL (see utils/resizeImage.js;
+// callers are expected to have already shrunk it, this doesn't re-check
+// size). Written to both users/{email} (private profile) and
+// public_profiles/{email} (so it shows up on the public /u/{username} page
+// and anywhere a counterparty's avatar is shown) — same dual-write shape as
+// the name mirror in upsertUser above.
+export async function setAvatar(email, avatarUrl) {
+  if (!email) return null
+  await setDoc(doc(db, 'users', email), { avatarUrl }, { merge: true })
+  await setDoc(doc(db, 'public_profiles', email), { avatarUrl }, { merge: true })
+  return avatarUrl
 }
 
 export async function getUser(email) {
