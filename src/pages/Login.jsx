@@ -11,7 +11,7 @@ const POLL_INTERVAL = 3000
 
 function Login() {
   const navigate = useTransitionNavigate()
-  const { authChecked, fbUser, refreshEmailVerified } = useAppState()
+  const { refreshEmailVerified } = useAppState()
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -37,15 +37,6 @@ function Login() {
     setStage('done')
     window.setTimeout(() => navigate('/dashboard'), 900)
   }
-
-  // If Firebase already has a signed-in-but-unverified session (they came back
-  // later without finishing verification), jump straight to the pending screen.
-  useEffect(() => {
-    if (authChecked && fbUser && !fbUser.emailVerified) {
-      setForm((f) => ({ ...f, email: fbUser.email }))
-      setStage('pending')
-    }
-  }, [authChecked, fbUser])
 
   useEffect(() => {
     if (stage !== 'pending') return

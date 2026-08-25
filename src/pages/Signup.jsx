@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Loader2, Mail, ShieldCheck, Smartphone } from 'lucide-react'
+import { ArrowLeft, Check, Loader2, Mail, ShieldCheck } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useTransitionNavigate } from '../hooks/useTransitionNavigate.js'
-import { signUp, resendVerification, sendPhoneOtp, confirmPhoneOtp, authErrorMessage } from '../utils/auth.js'
+import { signUp, resendVerification, authErrorMessage } from '../utils/auth.js'
 import { claimUsername, isUsernameAvailable, normalizeUsername, suggestUsernames, usernameError } from '../state/users.js'
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '../utils/countryCodes.js'
 import './Auth.css'
@@ -12,6 +12,11 @@ import './Auth.css'
 const RESEND_COOLDOWN = 45
 const POLL_INTERVAL = 3000
 
+// SMS OTP verification needs Firebase's Blaze (pay-as-you-go) plan, so the
+// phone field is collected (with a real country code, for currency/display
+// elsewhere) but not verified for now — just formatted to E.164 and stored
+// as-is. Re-add a phone-otp stage between submit() and 'pending' if that
+// changes; see git history for the last working version.
 function toE164(dial, localRaw) {
   let digits = (localRaw || '').replace(/\D/g, '')
   if (digits.startsWith('0')) digits = digits.slice(1)
@@ -30,17 +35,12 @@ function Signup() {
   const [usernameSuggestions, setUsernameSuggestions] = useState([])
   const usernameCheckRef = useRef(0)
 
-  const [stage, setStage] = useState('form') // 'form' | 'phone-otp' | 'pending' | 'done'
+  const [stage, setStage] = useState('form') // 'form' | 'pending' | 'done'
   const [cooldown, setCooldown] = useState(0)
   const pollRef = useRef(null)
 
   const selectedCountry = COUNTRY_CODES.find((c) => c.iso2 === form.countryIso) || DEFAULT_COUNTRY
   const e164Phone = toE164(selectedCountry.dial, form.phone)
-
-  const [otpCode, setOtpCode] = useState('')
-  const [confirmationResult, setConfirmationResult] = useState(null)
-  const [sendingOtp, setSendingOtp] = useState(false)
-  const otpSentRef = useRef(false)
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -117,58 +117,11 @@ function Signup() {
     setSubmitting(true)
     try {
       await signUp(form.name, form.email, form.password)
-      setUser({ name: form.name, email: form.email, countryIso: form.countryIso })
+      setUser({ name: form.name, email: form.email, phone: e164Phone, countryIso: form.countryIso })
       // Doesn't block the rest of signup if it fails (e.g. someone else won
       // the race a moment ago) — the account still exists either way, and a
       // username can be set later from Profile.
       try { await claimUsername(form.email, form.name, form.username) } catch { /* handled from Profile later */ }
-      setStage('phone-otp')
-    } catch (err) {
-      setError(authErrorMessage(err))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  // Auto-sends the first code as soon as the phone-otp screen shows —
-  // guarded so a re-render (or the effect re-running) never double-sends.
-  const sendOtp = async () => {
-    setError('')
-    setSendingOtp(true)
-    try {
-      const result = await sendPhoneOtp(e164Phone, 'recaptcha-container')
-      setConfirmationResult(result)
-      startCooldown()
-    } catch (err) {
-      setError(authErrorMessage(err))
-    } finally {
-      setSendingOtp(false)
-    }
-  }
-
-  useEffect(() => {
-    if (stage !== 'phone-otp' || otpSentRef.current) return
-    otpSentRef.current = true
-    sendOtp()
-  }, [stage])
-
-  const resendOtp = () => {
-    if (cooldown > 0) return
-    sendOtp()
-  }
-
-  // Phone verification links the SMS-confirmed number onto the account
-  // Firebase-side (see sendPhoneOtp/confirmPhoneOtp in utils/auth.js) — the
-  // number only gets written to their Firestore profile once that's
-  // actually confirmed, formatted with its real country code either way.
-  const submitOtp = async (e) => {
-    e.preventDefault()
-    if (!confirmationResult) return
-    setError('')
-    setSubmitting(true)
-    try {
-      await confirmPhoneOtp(confirmationResult, otpCode)
-      setUser({ phone: e164Phone })
       setStage('pending')
       startCooldown()
     } catch (err) {
@@ -176,15 +129,6 @@ function Signup() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  // SMS delivery can fail for reasons outside anyone's control (carrier,
-  // region, a mistyped digit) — this isn't allowed to be a hard blocker on
-  // creating an account. They can add/verify a phone later from Profile.
-  const skipPhone = () => {
-    setError('')
-    setStage('pending')
-    startCooldown()
   }
 
   const checkNow = async () => {
@@ -231,32 +175,6 @@ function Signup() {
               <h2 className="creating-text">There you go!</h2>
               <div className="creating-bar"><i></i></div>
             </div>
-          ) : stage === 'phone-otp' ? (
-            <>
-              <button type="button" className="auth-back" onClick={skipPhone}><ArrowLeft size={14} /> Skip for now</button>
-              <div className="auth-code-icon"><Smartphone size={22} /></div>
-              <h2>Verify your phone</h2>
-              <p>{sendingOtp && !confirmationResult ? 'Sending a code…' : <>We sent a 6-digit code by SMS to <b>{e164Phone}</b>.</>}</p>
-
-              {error && <div className="auth-error">{error}</div>}
-
-              <form onSubmit={submitOtp}>
-                <div className="auth-field">
-                  <label htmlFor="otp">Code</label>
-                  <input id="otp" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-                </div>
-                <button className="auth-submit" type="submit" disabled={submitting || !confirmationResult || otpCode.length < 6}>
-                  {submitting ? <><Loader2 size={15} className="spin" /> Verifying…</> : 'Verify phone'}
-                </button>
-              </form>
-
-              <div className="auth-switch">
-                Didn't get it?{' '}
-                {cooldown > 0
-                  ? <span>Resend in {cooldown}s</span>
-                  : <a href="#" onClick={(e) => { e.preventDefault(); resendOtp() }}>Resend code</a>}
-              </div>
-            </>
           ) : stage === 'pending' ? (
             <>
               <button type="button" className="auth-back" onClick={() => { setStage('form'); setError('') }}><ArrowLeft size={14} /> Back</button>
@@ -315,7 +233,6 @@ function Signup() {
                     </select>
                     <input id="phone" type="tel" placeholder="24 000 0000" value={form.phone} onChange={update('phone')} />
                   </div>
-                  {form.phone && <small className="auth-username-hint ok">We'll text a code to {e164Phone} to verify it.</small>}
                 </div>
                 <div className="auth-field"><label htmlFor="password">Password</label><input id="password" type="password" placeholder="At least 6 characters" value={form.password} onChange={update('password')} /></div>
                 <button className="auth-submit" type="submit" disabled={submitting}>
@@ -330,10 +247,6 @@ function Signup() {
           )}
         </div>
       </div>
-      {/* Invisible reCAPTCHA anchor for phone OTP (see sendPhoneOtp in
-          utils/auth.js) — needs to exist in the DOM before the phone-otp
-          stage ever calls it, so it's rendered unconditionally here. */}
-      <div id="recaptcha-container"></div>
     </div>
   )
 }

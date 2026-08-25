@@ -102,6 +102,9 @@ const ERROR_MESSAGES = {
   'auth/invalid-verification-code': "That code isn't right. Check the SMS and try again.",
   'auth/credential-already-in-use': 'That phone number is already linked to a different account.',
   'auth/provider-already-linked': 'A phone number is already linked to this account.',
+  'auth/operation-not-allowed': "Phone sign-in isn't turned on for this project yet.",
+  'auth/captcha-check-failed': "Verification check failed — refresh the page and try again.",
+  'auth/quota-exceeded': "We've hit today's SMS limit. Please try again later.",
 }
 
 export function authErrorMessage(err) {
