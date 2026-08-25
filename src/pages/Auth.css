@@ -26,6 +26,10 @@
 .auth-field input{padding:12px 14px;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;font-size:16px;transition:border-color .2s,box-shadow .2s}
 .auth-field input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}
 .auth-row-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.auth-phone-row{display:flex;gap:8px}
+.auth-phone-row select{flex:0 0 auto;width:108px;padding:12px 8px;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;font-size:14px}
+.auth-phone-row select:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}
+.auth-phone-row input{flex:1;min-width:0}
 .auth-username-wrap{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:#fff;transition:border-color .2s,box-shadow .2s}
 .auth-username-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #2754ea1f}
 .auth-username-wrap.available{border-color:var(--green)}
