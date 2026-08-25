@@ -39,6 +39,10 @@ service cloud.firestore {
       // an already-set username goes through api/customer.js's renameUsername instead,
       // since that's rate-limited and writes usernameHistory, which the
       // client can never touch here.
+      // activeWarning (team-issued warning + optional cooldown, see
+      // api/team.js's warn action) is deliberately absent from the allowed
+      // fields below — the client can only move it via acknowledgeWarning/
+      // completeCooldown in api/customer.js, never by writing it directly.
       allow update: if isMe(email) &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['name', 'username', 'phone', 'payoutMethod', 'avatarUrl', 'countryIso']) &&

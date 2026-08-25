@@ -14,6 +14,18 @@ async function handleLogin(req, res) {
   res.status(200).json({ ok: true })
 }
 
+// "5d", "12h", "30m" -> milliseconds. Cooldown is optional (see
+// firestore.rules/api/customer.js's assertNoActiveCooldown) — an
+// unparseable or blank duration just means no restriction period, not an
+// error, since the team should be able to warn someone without punishing them.
+function parseDurationMs(input) {
+  const m = /^(\d+)\s*(d|h|m)$/i.exec((input || '').trim())
+  if (!m) return 0
+  const n = Number(m[1])
+  const mult = { d: 86400000, h: 3600000, m: 60000 }[m[2].toLowerCase()]
+  return n * mult
+}
+
 async function handleUsers(req, res) {
   if (req.method === 'GET') {
     const snap = await db.collection('users').get()
@@ -22,15 +34,20 @@ async function handleUsers(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { action, email, reason } = req.body || {}
+    const { action, email, reason, duration } = req.body || {}
     if (!email) return res.status(400).json({ error: 'email is required' })
     const ref = db.collection('users').doc(email)
 
     if (action === 'warn') {
       const snap = await ref.get()
       if (!snap.exists) return res.status(404).json({ error: 'User not found' })
-      const warnings = [...(snap.data().warnings || []), { reason: reason || 'No reason given.', at: new Date().toISOString() }]
-      await ref.set({ status: 'warned', warnings }, { merge: true })
+      const at = new Date().toISOString()
+      // No duration set -> cooldownUntil = at (already expired), so the
+      // customer sees the warning notice but isn't held to any restriction.
+      const cooldownUntil = new Date(Date.now() + parseDurationMs(duration)).toISOString()
+      const warningEntry = { reason: reason || 'No reason given.', at, cooldownUntil }
+      const warnings = [...(snap.data().warnings || []), warningEntry]
+      await ref.set({ status: 'warned', warnings, activeWarning: { ...warningEntry, acknowledged: false } }, { merge: true })
     } else if (action === 'ban') {
       await ref.set({ status: 'banned', banReason: reason || 'Violated Middleman terms.', bannedAt: new Date().toISOString() }, { merge: true })
     } else if (action === 'unban') {

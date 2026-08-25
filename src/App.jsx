@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppStateProvider, useAppState } from './state/AppState.jsx'
 import LoadingScreen from './components/LoadingScreen.jsx'
 import BannedScreen from './components/BannedScreen.jsx'
+import WarningGate from './components/WarningGate.jsx'
 import Welcome from './pages/Welcome.jsx'
 import Signup from './pages/Signup.jsx'
 import Login from './pages/Login.jsx'
@@ -20,7 +21,7 @@ function RequireAuth({ children }) {
   if (!authChecked) return null
   if (!authed) return <Navigate to="/login" replace />
   if (banned) return <BannedScreen />
-  return children
+  return <WarningGate>{children}</WarningGate>
 }
 
 function AppRoutes() {

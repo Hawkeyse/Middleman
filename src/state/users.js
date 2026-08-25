@@ -152,6 +152,15 @@ export async function renameUsername(newUsername) {
   return authedFetch('/api/customer', { body: { action: 'renameUsername', username: newUsername } })
 }
 
+// The two steps of the warning flow — see src/components/WarningGate.jsx
+// and api/customer.js's acknowledgeWarning/completeCooldown.
+export async function acknowledgeWarning() {
+  return authedFetch('/api/customer', { body: { action: 'acknowledgeWarning' } })
+}
+export async function completeCooldown() {
+  return authedFetch('/api/customer', { body: { action: 'completeCooldown' } })
+}
+
 // Resolves a username — current OR retired, since old handles are never
 // freed for someone else to claim (see claimUsername) — to the public
 // profile it belongs to. Two reads: the public usernames directory to find

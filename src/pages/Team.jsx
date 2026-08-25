@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Check, Flag, Headset, IdCard,
-  LayoutDashboard, Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
+  LayoutDashboard, Lock, Receipt, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { typingFrom } from '../state/chat.js'
@@ -83,6 +83,7 @@ function Team() {
   const [users, setUsers] = useState([])
   const [selectedUserEmail, setSelectedUserEmail] = useState(null)
   const [actionDraft, setActionDraft] = useState('')
+  const [cooldownDraft, setCooldownDraft] = useState('')
 
   const [transactions, setTransactions] = useState([])
 
@@ -188,7 +189,7 @@ function Team() {
   const joinChat = (email) => { teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'join', email, agentName } }).then(refresh).catch(() => {}) }
   const closeChat = (email) => { teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'close', email } }).then(refresh).catch(() => {}) }
 
-  const warn = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.' } }).then(refresh).catch(() => {}); setActionDraft('') }
+  const warn = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.', duration: cooldownDraft } }).then(refresh).catch(() => {}); setActionDraft(''); setCooldownDraft('') }
   const ban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
   const unban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'unban', email } }).then(refresh).catch(() => {}) }
 
@@ -323,8 +324,9 @@ function Team() {
                 ) : (
                   <div className="team-actions">
                     <input placeholder="Reason for warning or ban" value={actionDraft} onChange={(e) => setActionDraft(e.target.value)} />
+                    <input className="team-cooldown-input" placeholder="Cooldown (optional, e.g. 5d, 12h)" value={cooldownDraft} onChange={(e) => setCooldownDraft(e.target.value)} />
                     <div>
-                      <button className="team-warn" onClick={() => warn(selectedUser.email)}><TriangleAlert size={15} /> Warn</button>
+                      <button className="team-warn" onClick={() => warn(selectedUser.email)}><Icon name="warn" size={15} /> Warn</button>
                       <button className="team-decline" onClick={() => ban(selectedUser.email)}><Icon name="ban" size={15} /> Ban</button>
                     </div>
                   </div>
@@ -334,7 +336,7 @@ function Team() {
                 {selectedUser.warnings?.length > 0 && (
                   <div className="team-warnings">
                     <span className="section-label">WARNING HISTORY</span>
-                    {selectedUser.warnings.map((w, i) => <div className="team-warning-row" key={i}><TriangleAlert size={13} /><span>{w.reason}</span><small>{new Date(w.at).toLocaleDateString()}</small></div>)}
+                    {selectedUser.warnings.map((w, i) => <div className="team-warning-row" key={i}><Icon name="warn" size={13} /><span>{w.reason}{w.cooldownUntil ? ` · restricted until ${new Date(w.cooldownUntil).toLocaleString()}` : ''}</span><small>{new Date(w.at).toLocaleDateString()}</small></div>)}
                   </div>
                 )}
               </>

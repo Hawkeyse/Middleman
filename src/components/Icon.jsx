@@ -15,6 +15,8 @@ const SIZES = {
   buying: '/icons/buying.png',
   selling: '/icons/selling.png',
   ban: '/icons/ban.svg',
+  warn: '/icons/warn.svg',
+  agree: '/icons/agree.svg',
 }
 
 function Icon({ name, size = 18, className = '' }) {

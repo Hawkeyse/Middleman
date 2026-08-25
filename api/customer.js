@@ -19,6 +19,18 @@ import { calcFeeUSD } from '../src/utils/fees.js'
 
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000
 
+// A team-issued warning can carry an optional restriction period (see
+// api/team.js's handleUsers 'warn' action) — while it's active, block the
+// account's money- and identity-moving actions server-side, since a client-
+// side blur/disable alone can be bypassed by calling this API directly.
+async function assertNoActiveCooldown(email) {
+  const snap = await db.collection('users').doc(email).get()
+  const w = snap.data()?.activeWarning
+  if (w?.cooldownUntil && Date.now() < new Date(w.cooldownUntil).getTime()) {
+    throw Object.assign(new Error(`Your account is temporarily restricted until ${new Date(w.cooldownUntil).toLocaleString()} — ${w.reason || 'contact support for details'}.`), { status: 403 })
+  }
+}
+
 function genDealCode() {
   const rand = () => Math.random().toString(36).slice(2, 6).toUpperCase()
   return `MDM-${rand()}-${rand().slice(0, 2)}`
@@ -33,6 +45,7 @@ function genDealCode() {
 // now — that rate is stored on the deal (fxRateUSD) so it's fully
 // reconstructable later even after the live rate has since moved on.
 async function createDeal(sellerEmail, { itemName, amount, currency, image, buyerContact, sellerName }) {
+  await assertNoActiveCooldown(sellerEmail)
   const amt = Number(amount)
   if (!itemName || !amt || amt <= 0) throw Object.assign(new Error('itemName and a positive amount are required'), { status: 400 })
   const cur = ['GHS', 'NGN', 'USD'].includes(currency) ? currency : 'GHS'
@@ -57,6 +70,7 @@ async function createDeal(sellerEmail, { itemName, amount, currency, image, buye
 }
 
 async function acceptDeal(buyerEmail, { code, name }) {
+  await assertNoActiveCooldown(buyerEmail)
   if (!code) throw Object.assign(new Error('code is required'), { status: 400 })
   const dealRef = db.collection('deals').doc(code)
   const deal = await db.runTransaction(async (tx) => {
@@ -136,6 +150,7 @@ async function verifyProviderPayment(provider, reference) {
 }
 
 async function depositWallet(email, { provider, reference }) {
+  await assertNoActiveCooldown(email)
   if (!provider || !reference) throw Object.assign(new Error('provider and reference are required'), { status: 400 })
 
   const entryRef = db.collection('wallet_entries').doc(`${provider}:${reference}`)
@@ -151,6 +166,7 @@ async function depositWallet(email, { provider, reference }) {
 }
 
 async function refundWallet(email, { amount, currency, note }) {
+  await assertNoActiveCooldown(email)
   const amt = Number(amount)
   if (!amt || amt <= 0) throw Object.assign(new Error('Enter an amount.'), { status: 400 })
   const cur = currency || 'GHS'
@@ -174,6 +190,7 @@ async function refundWallet(email, { amount, currency, note }) {
 }
 
 async function requestPayout(email, { amount, currency, note }) {
+  await assertNoActiveCooldown(email)
   const amt = Number(amount)
   if (!amt || amt <= 0) throw Object.assign(new Error('Enter an amount.'), { status: 400 })
   const cur = currency || 'GHS'
@@ -203,6 +220,7 @@ async function requestPayout(email, { amount, currency, note }) {
 }
 
 async function renameUsername(email, { username }) {
+  await assertNoActiveCooldown(email)
   const newUsername = normalizeUsername(username)
   const err = usernameError(newUsername)
   if (err) throw Object.assign(new Error(err), { status: 400 })
@@ -245,6 +263,36 @@ async function renameUsername(email, { username }) {
 // and reopening it if the last agent closed it. lastMessage*/
 // unreadForTeamCount are denormalized here so the team's thread list is a
 // cheap read instead of pulling every thread's full message history.
+// The two steps of the warning flow the customer drives themselves (see
+// src/components/WarningGate.jsx): first acknowledging they've seen the
+// warning (blur+"Accept"), then — once any cooldown has passed — closing it
+// out via the "I Agree" Account Notice. Both read-then-replace the whole
+// activeWarning object rather than a dot-path update, since Firestore's
+// {merge:true} only shallow-merges top-level fields.
+async function acknowledgeWarning(email) {
+  const ref = db.collection('users').doc(email)
+  const snap = await ref.get()
+  const w = snap.data()?.activeWarning
+  if (!w || w.acknowledged) return { ok: true }
+  await ref.set({ activeWarning: { ...w, acknowledged: true, acknowledgedAt: new Date().toISOString() } }, { merge: true })
+  return { ok: true }
+}
+
+async function completeCooldown(email) {
+  const ref = db.collection('users').doc(email)
+  const snap = await ref.get()
+  const data = snap.data()
+  const w = data?.activeWarning
+  if (!w) return { ok: true }
+  if (w.cooldownUntil && Date.now() < new Date(w.cooldownUntil).getTime()) {
+    throw Object.assign(new Error('Your cooldown has not ended yet.'), { status: 403 })
+  }
+  const patch = { activeWarning: FieldValue.delete() }
+  if (data.status !== 'banned') patch.status = 'active'
+  await ref.set(patch, { merge: true })
+  return { ok: true }
+}
+
 async function sendChatMessage(email, { text, image, name }) {
   const threadRef = db.collection('chat_threads').doc(email)
   const at = new Date().toISOString()
@@ -279,7 +327,7 @@ async function markChatRead(email) {
 
 const ACTIONS = {
   createDeal, acceptDeal, releaseDeal, depositWallet, refundWallet, requestPayout, renameUsername,
-  sendChatMessage, chatTyping, markChatRead,
+  sendChatMessage, chatTyping, markChatRead, acknowledgeWarning, completeCooldown,
 }
 
 export default async function handler(req, res) {
