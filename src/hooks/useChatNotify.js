@@ -3,9 +3,8 @@ import { getTotalUnread, getUnreadCount } from '../state/chat.js'
 import { playPing } from '../utils/ping.js'
 import { showNotification } from '../utils/notify.js'
 
-// Polls the shared chat store (works within the same tab, where storage events
-// don't fire) and also listens for cross-tab updates, so a reply lands with a
-// ping + badge whether it came from another tab or the same one.
+// Polls the (now Firestore-backed) unread count so a reply lands with a
+// ping + badge on every device, not just the one it arrived in.
 export function useChatNotify({ email, role, title = 'New message', active = true }) {
   const [unread, setUnread] = useState(0)
   const prevRef = useRef(-1)
@@ -13,9 +12,11 @@ export function useChatNotify({ email, role, title = 'New message', active = tru
   useEffect(() => {
     if (!active) return
     const isTeam = role === 'team'
+    let cancelled = false
 
-    const check = () => {
-      const count = isTeam ? getTotalUnread('team') : (email ? getUnreadCount(email, 'customer') : 0)
+    const check = async () => {
+      const count = isTeam ? await getTotalUnread() : (email ? await getUnreadCount(email) : 0)
+      if (cancelled) return
       if (prevRef.current !== -1 && count > prevRef.current) {
         playPing()
         showNotification(title, "You've got a new message on Middleman.")
@@ -25,13 +26,10 @@ export function useChatNotify({ email, role, title = 'New message', active = tru
     }
 
     check()
-    const id = window.setInterval(check, 2000)
-    window.addEventListener('storage', check)
-    window.addEventListener('mm-chat-updated', check)
+    const id = window.setInterval(check, 3000)
     return () => {
+      cancelled = true
       window.clearInterval(id)
-      window.removeEventListener('storage', check)
-      window.removeEventListener('mm-chat-updated', check)
     }
   }, [email, role, active, title])
 

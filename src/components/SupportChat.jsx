@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Headset, Loader2 } from 'lucide-react'
 import Icon from './Icon.jsx'
 import ChatThread from './ChatThread.jsx'
-import { getThread, sendMessage, markRead, getUnreadCount, setTyping, getTypingRole } from '../state/chat.js'
+import { getThread, sendMessage, markRead, setTyping, typingFrom } from '../state/chat.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import './SupportChat.css'
 
@@ -13,46 +13,32 @@ const statusCopy = {
 }
 
 function SupportChat({ email, name, onClose }) {
-  const [thread, setThread] = useState(() => getThread(email))
+  const [thread, setThread] = useState(null)
   const [teamTyping, setTeamTyping] = useState(false)
 
+  // Firestore-backed now (see src/state/chat.js) — polled rather than read
+  // synchronously, same convention as everywhere else this session moved
+  // off localStorage, so a reply from the team shows up here whatever
+  // device/browser it was sent from.
+  const sync = useCallback(async () => {
+    const t = await getThread(email)
+    setThread(t)
+    setTeamTyping(typingFrom(t, 'customer') === 'team')
+    if ((t?.unreadForCustomerCount || 0) > 0) markRead(email)
+  }, [email])
+
   useEffect(() => {
-    setThread(getThread(email))
-    markRead(email, 'customer')
+    sync()
     requestNotifyPermission()
-  }, [email])
+  }, [email, sync])
 
-  // Keep read up to date while the panel is open and new replies arrive.
   useEffect(() => {
-    const sync = () => {
-      setThread(getThread(email))
-      if (getUnreadCount(email, 'customer') > 0) markRead(email, 'customer')
-    }
-    window.addEventListener('storage', sync)
-    window.addEventListener('mm-chat-updated', sync)
-    return () => {
-      window.removeEventListener('storage', sync)
-      window.removeEventListener('mm-chat-updated', sync)
-    }
-  }, [email])
+    const id = window.setInterval(sync, 2000)
+    return () => window.clearInterval(id)
+  }, [sync])
 
-  // Typing state has its own short-TTL storage/event (see chat.js) so it
-  // doesn't ride along with full thread refreshes. Poll too, since the
-  // indicator needs to disappear on its own once the TTL lapses, without
-  // waiting for a new write to trigger the event.
-  useEffect(() => {
-    const check = () => setTeamTyping(getTypingRole(email, 'customer') === 'team')
-    check()
-    window.addEventListener('mm-typing-updated', check)
-    const id = window.setInterval(check, 1000)
-    return () => {
-      window.removeEventListener('mm-typing-updated', check)
-      window.clearInterval(id)
-    }
-  }, [email])
-
-  const send = (text, image) => {
-    const updated = sendMessage(email, { from: 'customer', text, image, name })
+  const send = async (text, image) => {
+    const updated = await sendMessage(email, { text, image, name })
     setThread(updated)
   }
 
@@ -71,7 +57,7 @@ function SupportChat({ email, name, onClose }) {
           onSend={send}
           selfRole="customer"
           placeholder="Message support…"
-          onTyping={() => setTyping(email, 'customer')}
+          onTyping={setTyping}
           typingLabel={teamTyping ? 'Agent is typing' : null}
         />
       </div>

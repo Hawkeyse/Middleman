@@ -196,8 +196,45 @@ async function renameUsername(email, { username }) {
   })
 }
 
+// Sends a customer message, creating the thread if this is their first one
+// and reopening it if the last agent closed it. lastMessage*/
+// unreadForTeamCount are denormalized here so the team's thread list is a
+// cheap read instead of pulling every thread's full message history.
+async function sendChatMessage(email, { text, image, name }) {
+  const threadRef = db.collection('chat_threads').doc(email)
+  const at = new Date().toISOString()
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(threadRef)
+    const existing = snap.exists ? snap.data() : null
+    const status = existing?.status === 'closed' ? 'waiting' : (existing?.status || 'waiting')
+
+    tx.set(threadRef, {
+      email, name: name || existing?.name || '', status,
+      lastMessageAt: at, lastMessagePreview: (text || '').slice(0, 80),
+      lastReadByCustomerAt: at,
+      unreadForTeamCount: (existing?.unreadForTeamCount || 0) + 1,
+    }, { merge: true })
+
+    tx.set(threadRef.collection('messages').doc(), { from: 'customer', text: text || '', image: image || null, at })
+  })
+
+  return { ok: true }
+}
+
+async function chatTyping(email) {
+  await db.collection('chat_threads').doc(email).set({ email, customerTypingAt: Date.now() }, { merge: true })
+  return { ok: true }
+}
+
+async function markChatRead(email) {
+  await db.collection('chat_threads').doc(email).set({ lastReadByCustomerAt: new Date().toISOString(), unreadForCustomerCount: 0 }, { merge: true })
+  return { ok: true }
+}
+
 const ACTIONS = {
   acceptDeal, releaseDeal, depositWallet, refundWallet, requestPayout, renameUsername,
+  sendChatMessage, chatTyping, markChatRead,
 }
 
 export default async function handler(req, res) {

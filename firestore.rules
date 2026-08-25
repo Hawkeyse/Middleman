@@ -132,22 +132,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Support chat. A customer can read/write their own thread and send
-    // their own messages/typing pings; joining as an agent, closing a
-    // thread, or replying as the agent all go through the team-passcode
-    // server route instead (Firestore rules have no way to know someone
-    // typed the right passcode, since /team isn't a real Firebase login).
+    // Support chat. Doc ID is the customer's email. Every write — sending a
+    // message (customer OR team), typing pings, join/close, marking read —
+    // goes through api/customer.js / api/team.js instead of a direct client
+    // write: unread counts and lastMessage* are denormalized onto the
+    // thread doc for a cheap badge/list read, and keeping those in sync
+    // with the messages subcollection is exactly the kind of multi-field
+    // coordinated write that's simplest to just always do server-side,
+    // same reasoning as wallet_entries/transactions elsewhere in this file.
     match /chat_threads/{id} {
-      allow read: if isMe(resource.data.customerEmail);
-      allow create: if isMe(request.resource.data.customerEmail);
-      allow update: if isMe(resource.data.customerEmail) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['customerTypingAt']);
+      allow read: if isMe(id);
+      allow write: if false;
 
       match /messages/{messageId} {
-        allow read: if isMe(get(/databases/$(database)/documents/chat_threads/$(id)).data.customerEmail);
-        allow create: if isMe(get(/databases/$(database)/documents/chat_threads/$(id)).data.customerEmail) &&
-          request.resource.data.role == 'customer';
-        allow update, delete: if false;
+        allow read: if isMe(id);
+        allow write: if false;
       }
     }
   }

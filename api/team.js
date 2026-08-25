@@ -174,9 +174,55 @@ async function handlePayouts(req, res) {
   res.status(405).json({ error: 'Method not allowed' })
 }
 
+async function handleChat(req, res) {
+  if (req.method === 'GET') {
+    const snap = await db.collection('chat_threads').get()
+    const threads = await Promise.all(snap.docs.map(async (d) => {
+      const msgsSnap = await db.collection('chat_threads').doc(d.id).collection('messages').orderBy('at').get()
+      return { ...d.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) }
+    }))
+    threads.sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''))
+    return res.status(200).json({ threads })
+  }
+
+  if (req.method === 'POST') {
+    const { action, email, text, image, agentName } = req.body || {}
+    if (!email) return res.status(400).json({ error: 'email is required' })
+    const ref = db.collection('chat_threads').doc(email)
+    const at = new Date().toISOString()
+
+    if (action === 'send') {
+      const snap = await ref.get()
+      const existing = snap.exists ? snap.data() : null
+      await ref.set({
+        email, lastMessageAt: at, lastMessagePreview: (text || '').slice(0, 80),
+        lastReadByTeamAt: at, unreadForCustomerCount: (existing?.unreadForCustomerCount || 0) + 1,
+      }, { merge: true })
+      await ref.collection('messages').add({ from: 'team', text: text || '', image: image || null, at })
+    } else if (action === 'join') {
+      await ref.set({ email, status: 'active', agentName: agentName || 'Middleman Team' }, { merge: true })
+      await ref.collection('messages').add({ from: 'system', text: `${agentName || 'A Middleman agent'} has joined this chat.`, at })
+    } else if (action === 'close') {
+      await ref.set({ email, status: 'closed' }, { merge: true })
+      await ref.collection('messages').add({ from: 'system', text: "This ticket has been closed. If you need anything else, message us again and we'll be right with you.", at })
+    } else if (action === 'typing') {
+      await ref.set({ email, teamTypingAt: Date.now() }, { merge: true })
+    } else if (action === 'markRead') {
+      await ref.set({ email, lastReadByTeamAt: at, unreadForTeamCount: 0 }, { merge: true })
+    } else {
+      return res.status(400).json({ error: 'Unknown action' })
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
+}
+
 const RESOURCES = {
   login: handleLogin, users: handleUsers, verifications: handleVerifications,
   deals: handleDeals, transactions: handleTransactions, refunds: handleRefunds, payouts: handlePayouts,
+  chat: handleChat,
 }
 
 export default async function handler(req, res) {

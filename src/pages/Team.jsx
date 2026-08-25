@@ -5,7 +5,7 @@ import {
   Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
-import { listThreads, sendMessage, getUnreadCount, markRead, joinThread, closeThread, setTyping, getTypingRole } from '../state/chat.js'
+import { typingFrom } from '../state/chat.js'
 import { teamFetch } from '../utils/teamFetch.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
@@ -95,7 +95,7 @@ function Team() {
 
   const refresh = () => {
     teamFetch('/api/team?resource=verifications').then((data) => setRecords(data.records)).catch(() => {})
-    setThreads(listThreads())
+    teamFetch('/api/team?resource=chat').then((data) => setThreads(data.threads)).catch(() => {})
     teamFetch('/api/team?resource=users').then((data) => setUsers(data.users)).catch(() => {})
     teamFetch('/api/team?resource=transactions').then((data) => setTransactions(data.transactions)).catch(() => {})
     teamFetch('/api/team?resource=deals').then((data) => setDeals(data.deals)).catch(() => {})
@@ -105,21 +105,21 @@ function Team() {
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
     if (!unlocked) return
-    window.addEventListener('mm-chat-updated', refresh)
-    return () => window.removeEventListener('mm-chat-updated', refresh)
+    const id = window.setInterval(refresh, 4000)
+    return () => window.clearInterval(id)
   }, [unlocked])
 
+  // Re-derives from the selected thread's own customerTypingAt on a fast
+  // local tick — the field itself only refreshes every 4s (see the poll
+  // above), but the TTL expiry still needs to happen on schedule, not wait
+  // for the next fetch.
   useEffect(() => {
     if (!selectedEmail) { setCustomerTyping(false); return }
-    const check = () => setCustomerTyping(getTypingRole(selectedEmail, 'team') === 'customer')
+    const check = () => setCustomerTyping(typingFrom(threads.find((t) => t.email === selectedEmail), 'team') === 'customer')
     check()
-    window.addEventListener('mm-typing-updated', check)
     const id = window.setInterval(check, 1000)
-    return () => {
-      window.removeEventListener('mm-typing-updated', check)
-      window.clearInterval(id)
-    }
-  }, [selectedEmail])
+    return () => window.clearInterval(id)
+  }, [selectedEmail, threads])
 
   // Grouped by currency — a single summed number would mix dollars, cedis and naira.
   const feesByCurrency = {}
@@ -159,13 +159,15 @@ function Team() {
   }
 
   const replyToCustomer = (text, image) => {
-    sendMessage(selectedEmail, { from: 'team', text, image })
-    refresh()
+    teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'send', email: selectedEmail, text, image } }).then(refresh).catch(() => {})
   }
 
-  const openThread = (email) => { setSelectedEmail(email); markRead(email, 'team'); refresh() }
-  const joinChat = (email) => { joinThread(email, agentName); refresh() }
-  const closeChat = (email) => { closeThread(email); refresh() }
+  const openThread = (email) => {
+    setSelectedEmail(email)
+    teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'markRead', email } }).then(refresh).catch(() => {})
+  }
+  const joinChat = (email) => { teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'join', email, agentName } }).then(refresh).catch(() => {}) }
+  const closeChat = (email) => { teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'close', email } }).then(refresh).catch(() => {}) }
 
   const warn = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.' } }).then(refresh).catch(() => {}); setActionDraft('') }
   const ban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
@@ -404,7 +406,7 @@ function Team() {
           <div className="team-list">
             {threads.length === 0 && <div className="team-empty">No conversations yet.</div>}
             {threads.map((t) => {
-              const unread = getUnreadCount(t.email, 'team')
+              const unread = t.unreadForTeamCount || 0
               return (
                 <button key={t.email} className={t.email === selectedEmail ? 'team-row active' : 'team-row'} onClick={() => openThread(t.email)}>
                   <div><b>{t.name || t.email}</b><span>{t.messages[t.messages.length - 1]?.text.slice(0, 40) || ''}</span></div>
@@ -426,7 +428,7 @@ function Team() {
                   onSend={replyToCustomer}
                   selfRole="team"
                   placeholder="Reply as Middleman team…"
-                  onTyping={() => setTyping(selectedThread.email, 'team')}
+                  onTyping={() => teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'typing', email: selectedThread.email } }).catch(() => {})}
                   typingLabel={customerTyping ? `${selectedThread.name || 'Customer'} is typing` : null}
                   footer={selectedThread.status === 'waiting'
                     ? <div className="chat-join-row"><button className="chat-join-button" onClick={() => joinChat(selectedThread.email)}><Headset size={15} /> Join chat</button></div>
