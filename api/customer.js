@@ -3,7 +3,9 @@ import { requireUser } from './_lib/requireUser.js'
 import { db } from './_lib/firebaseAdmin.js'
 import { paystackFetch } from './_lib/paystack.js'
 import { flutterwaveFetch } from './_lib/flutterwave.js'
+import { usdRate } from './_lib/fx.js'
 import { normalizeUsername, usernameError } from '../src/utils/usernameRules.js'
+import { calcFeeUSD } from '../src/utils/fees.js'
 
 // Every signed-in-user (requireUser) action that has to be server-side —
 // money moves, or a rate-limited/history field firestore.rules blocks a
@@ -16,6 +18,43 @@ import { normalizeUsername, usernameError } from '../src/utils/usernameRules.js'
 // payoutRequests.js, users.js for the client side.
 
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000
+
+function genDealCode() {
+  const rand = () => Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `MDM-${rand()}-${rand().slice(0, 2)}`
+}
+
+// Deal creation is server-side (unlike cancel/dispute, which stay direct
+// client writes — see firestore.rules) specifically so the fee can be
+// computed against the live exchange rate and locked onto the deal here,
+// rather than the client using an approximate rate or none at all. The fee
+// itself is calculated in USD (see src/utils/fees.js) regardless of the
+// deal's listed currency, then converted at whatever rate was live just
+// now — that rate is stored on the deal (fxRateUSD) so it's fully
+// reconstructable later even after the live rate has since moved on.
+async function createDeal(sellerEmail, { itemName, amount, currency, image, buyerContact, sellerName }) {
+  const amt = Number(amount)
+  if (!itemName || !amt || amt <= 0) throw Object.assign(new Error('itemName and a positive amount are required'), { status: 400 })
+  const cur = ['GHS', 'NGN', 'USD'].includes(currency) ? currency : 'GHS'
+
+  const rate = await usdRate(cur)
+  const amountUSD = amt / rate
+  const feeUSD = calcFeeUSD(amountUSD)
+  const fee = Math.round(feeUSD * rate * 100) / 100
+  const feeRate = fee / amt
+  const buyerTotal = Math.round((amt + fee) * 100) / 100
+
+  let code = genDealCode()
+  for (let i = 0; i < 5 && (await db.collection('deals').doc(code).get()).exists; i++) code = genDealCode()
+
+  const deal = {
+    code, itemName, amount: amt, currency: cur, image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail,
+    feeRate, fee, buyerTotal, sellerPayout: amt, fxRateUSD: rate, inviteType: 'link',
+    createdAt: new Date().toISOString(), status: 'pending-acceptance',
+  }
+  await db.collection('deals').doc(code).set(deal)
+  return { deal }
+}
 
 async function acceptDeal(buyerEmail, { code, name }) {
   if (!code) throw Object.assign(new Error('code is required'), { status: 400 })
@@ -233,7 +272,7 @@ async function markChatRead(email) {
 }
 
 const ACTIONS = {
-  acceptDeal, releaseDeal, depositWallet, refundWallet, requestPayout, renameUsername,
+  createDeal, acceptDeal, releaseDeal, depositWallet, refundWallet, requestPayout, renameUsername,
   sendChatMessage, chatTyping, markChatRead,
 }
 

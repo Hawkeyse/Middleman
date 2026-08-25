@@ -1,36 +1,18 @@
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
 import { db } from '../lib/firebase.js'
-import { calcFee } from '../utils/fees.js'
 import { authedFetch } from '../utils/authedFetch.js'
 
-// Firestore-backed — see firestore.rules. Create/cancel/dispute are direct
-// client writes (the rules allow exactly those transitions and nothing
-// else); accept (debits a wallet) and release (credits a seller) go through
-// api/customer.js on the server instead, since wallet_entries/transactions
-// are server-write-only.
+// Firestore-backed — see firestore.rules. Cancel/dispute are direct client
+// writes (the rules allow exactly those transitions and nothing else);
+// create (needs the live exchange rate to price the fee), accept (debits a
+// wallet), and release (credits a seller) all go through api/customer.js
+// on the server instead.
 
-function genCode() {
-  const rand = () => Math.random().toString(36).slice(2, 6).toUpperCase()
-  return `MDM-${rand()}-${rand().slice(0, 2)}`
-}
-
-export async function createDeal({ itemName, amount, currency, image, buyerContact, sellerName, sellerEmail }) {
-  const { feeRate, fee, buyerTotal, sellerPayout } = calcFee(amount, currency)
-
-  // No pre-write collision check: reading a deals/{code} doc that doesn't
-  // exist yet would hit the same security rule as reading someone else's
-  // deal (resource is null, so resource.data.inviteType errors out and gets
-  // denied) — there's no way to distinguish "doesn't exist" from "not mine"
-  // from the client. The code space (36^4 * 36^2) makes a collision
-  // astronomically unlikely in practice.
-  const code = genCode()
-
-  const deal = {
-    code, itemName, amount, currency: currency || 'GHS', image: image || null, buyerContact: buyerContact || '', sellerName, sellerEmail,
-    feeRate, fee, buyerTotal, sellerPayout, inviteType: 'link',
-    createdAt: new Date().toISOString(), status: 'pending-acceptance',
-  }
-  await setDoc(doc(db, 'deals', code), deal)
+// Fee is computed server-side against the live exchange rate and locked
+// onto the deal there (see api/customer.js's createDeal + src/utils/
+// fees.js) — the client only supplies what the seller actually typed.
+export async function createDeal({ itemName, amount, currency, image, buyerContact, sellerName }) {
+  const { deal } = await authedFetch('/api/customer', { body: { action: 'createDeal', itemName, amount, currency, image, buyerContact, sellerName } })
   return deal
 }
 

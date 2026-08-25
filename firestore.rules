@@ -82,13 +82,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // A deal's lifecycle. Creating and the non-financial transitions
-    // (cancel/decline/dispute) are direct client writes; accepting (debits a
-    // wallet) and releasing/resolving (credits a seller) go through
-    // api/deals/*.js on the server instead, which is why they're absent here.
+    // A deal's lifecycle. The non-financial transitions (cancel/decline/
+    // dispute) are direct client writes; creating (needs the live exchange
+    // rate to price the fee), accepting (debits a wallet), and releasing/
+    // resolving (credits a seller) all go through api/customer.js /
+    // api/team.js on the server instead, which is why they're absent here.
     match /deals/{code} {
       allow read: if resource.data.inviteType == 'link' || isMe(resource.data.sellerEmail) || isMe(resource.data.buyerEmail);
-      allow create: if isMe(request.resource.data.sellerEmail);
+      allow create: if false;
       allow update: if
         (isMe(resource.data.sellerEmail) &&
           resource.data.status in ['pending-acceptance', 'invited'] &&

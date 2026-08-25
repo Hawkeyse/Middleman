@@ -317,7 +317,7 @@ function Dashboard() {
 
   const submitNewDeal = async (e) => {
     e.preventDefault()
-    const deal = await createDeal({ ...dealForm, amount: Number(dealForm.amount), sellerName: user.name || 'A Middleman seller', sellerEmail: user.email })
+    const deal = await createDeal({ ...dealForm, amount: Number(dealForm.amount), sellerName: user.name || 'A Middleman seller' })
     setCreatedDeal(deal)
     setNewDealStep('success')
     loadData()

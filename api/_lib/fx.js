@@ -23,3 +23,15 @@ export async function convertCurrency(amount, from, to) {
   const usd = amount / fromRate
   return Math.round(usd * toRate * 100) / 100
 }
+
+// Units of `currency` per 1 USD — the same rate convertCurrency uses
+// internally, exposed directly for callers that need to record/lock the
+// actual rate used (see api/customer.js's createDeal) rather than just get
+// a converted number back.
+export async function usdRate(currency) {
+  if (currency === 'USD') return 1
+  const rates = await getRatesUSD()
+  const rate = rates[currency]
+  if (!rate) throw new Error(`Exchange rate unavailable for ${currency}`)
+  return rate
+}
