@@ -109,6 +109,20 @@ function Team() {
     return () => window.clearInterval(id)
   }, [unlocked])
 
+  // Backgrounded/throttled timers (mobile especially) shouldn't leave the
+  // team looking at a stale conversation — catch up the moment this tab
+  // gets focus again instead of waiting on the next poll tick.
+  useEffect(() => {
+    if (!unlocked) return
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [unlocked])
+
   // Re-derives from the selected thread's own customerTypingAt on a fast
   // local tick — the field itself only refreshes every 4s (see the poll
   // above), but the TTL expiry still needs to happen on schedule, not wait
@@ -158,9 +172,11 @@ function Team() {
     setReasonDraft('')
   }
 
-  const replyToCustomer = (text, image) => {
-    teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'send', email: selectedEmail, text, image } }).then(refresh).catch(() => {})
-  }
+  // Returned (not swallowed) so ChatThread's own submit handler knows
+  // whether the send actually worked, instead of clearing the composer
+  // regardless and losing a failed message silently.
+  const replyToCustomer = (text, image) =>
+    teamFetch('/api/team?resource=chat', { method: 'POST', body: { action: 'send', email: selectedEmail, text, image } }).then(refresh)
 
   const openThread = (email) => {
     setSelectedEmail(email)

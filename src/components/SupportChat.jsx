@@ -37,6 +37,21 @@ function SupportChat({ email, name, onClose }) {
     return () => window.clearInterval(id)
   }, [sync])
 
+  // Mobile browsers throttle (or fully suspend) setInterval timers once a
+  // tab is backgrounded/screen-locked — without this, a reply that arrived
+  // while the phone was asleep wouldn't show up until the next un-throttled
+  // tick, which can lag well behind 2s. Catches up the moment it's visible
+  // again instead of waiting on it.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') sync() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [sync])
+
   const send = async (text, image) => {
     const updated = await sendMessage(email, { text, image, name })
     setThread(updated)

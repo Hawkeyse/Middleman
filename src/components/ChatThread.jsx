@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Paperclip, Send } from 'lucide-react'
+import { Loader2, Paperclip, Send } from 'lucide-react'
 import Icon from './Icon.jsx'
 import './ChatThread.css'
 
@@ -35,18 +35,32 @@ function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a messageâ
   const [text, setText] = useState('')
   const [imageDraft, setImageDraft] = useState(null)
   const [zoomImage, setZoomImage] = useState(null)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   const endRef = useRef(null)
   const fileInputRef = useRef(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [messages, typingLabel])
 
-  const submit = (e) => {
+  // Only clears the composer once onSend actually resolves â€” it used to
+  // clear unconditionally, so a send that failed silently (a dropped
+  // request, a server error) still looked sent on this side while the
+  // other party never got anything.
+  const submit = async (e) => {
     e.preventDefault()
     const trimmed = text.trim()
     if (!trimmed && !imageDraft) return
-    onSend(trimmed, imageDraft)
-    setText('')
-    setImageDraft(null)
+    setSendError('')
+    setSending(true)
+    try {
+      await onSend(trimmed, imageDraft)
+      setText('')
+      setImageDraft(null)
+    } catch (err) {
+      setSendError(err.message || "Couldn't send â€” check your connection and try again.")
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleTextChange = (e) => {
@@ -88,15 +102,16 @@ function ChatThread({ messages, onSend, selfRole, placeholder = 'Type a messageâ
           <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFile} hidden />
           <button type="button" className="chat-attach" aria-label="Attach image" onClick={() => fileInputRef.current?.click()}><Paperclip size={16} /></button>
           <div className="chat-input-col">
+            {sendError && <small className="chat-send-error">{sendError}</small>}
             {imageDraft && (
               <div className="chat-image-draft">
                 <img src={imageDraft} alt="Selected attachment" />
                 <button type="button" onClick={() => setImageDraft(null)} aria-label="Remove attachment"><Icon name="close" size={12} /></button>
               </div>
             )}
-            <input value={text} onChange={handleTextChange} placeholder={placeholder} />
+            <input value={text} onChange={handleTextChange} placeholder={placeholder} disabled={sending} />
           </div>
-          <button type="submit" aria-label="Send"><Send size={16} /></button>
+          <button type="submit" aria-label="Send" disabled={sending}>{sending ? <Loader2 size={16} className="spin" /> : <Send size={16} />}</button>
         </form>
       )}
       {zoomImage && (
