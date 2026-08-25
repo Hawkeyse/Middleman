@@ -135,6 +135,11 @@ function Dashboard() {
   const completedCount = deals.filter((d) => d.status === 'released').length
   const warningsCount = accountStatus?.warnings?.length || 0
   const trustScoreTarget = calcTrustScore({ completedCount, warningsCount })
+  // Was a fixed decorative shape (always showing a "hot" bar) regardless of
+  // the actual score — scale it by trustScoreTarget so an empty/low score
+  // reads as an empty/low chart instead of a fake-looking upward trend.
+  const trustBarShape = [44, 63, 56, 80, 96, 72, 86]
+  const trustBarHeights = trustBarShape.map((h) => Math.max(6, Math.round(h * (trustScoreTarget / 100))))
 
   // The one deal most worth surfacing on the overview: a live dispute first
   // (both sides want eyes on that), then something needing the signed-in
@@ -448,7 +453,7 @@ function Dashboard() {
         <>
         <section className="hero-grid animate-in" style={{ animationDelay: '110ms' }}>
           <div className="hero-card"><div className="hero-copy"><span className="status-chip"><span className="pulse-dot"></span> {heroChip}</span><h2>One step closer<br /><em>to a safe delivery.</em></h2><p>{activeDeal ? 'Your payment is locked and protected. Confirm when your package arrives, and we will release it instantly.' : mode === 'buyer' ? 'Top up your wallet so you\'re ready to accept an invite the moment one comes in — no separate payment needed at accept-time.' : 'Create a deal and we\'ll hand you an invite link — your buyer pays into escrow, and the money stays locked until you both agree it\'s done.'}</p><button className="hero-cta" onClick={heroAction}>{activeDeal ? 'Review current deal' : mode === 'buyer' ? 'Deposit funds' : 'Create your first deal'} <ArrowUpRight size={17} /></button></div><div className="orb orb-one"></div><div className="orb orb-two"></div>{activeDeal && <div className="hero-stamp"><LockKeyhole size={17} /><span>{symbolFor(activeDeal.currency)} {money(activeDeal.amount)}<br /><small>held securely</small></span></div>}</div>
-          <div className="stats-card"><div className="section-label">YOUR TRUST SCORE <span>?</span></div><div className="score-row"><strong>{Math.round(trustScore)}</strong><span>/ 100</span><div className="score-ring"><ShieldCheck size={24} /></div></div><p>{trustScoreTarget >= 90 ? 'Excellent. You are building a trusted track record.' : trustScoreTarget >= 70 ? 'Good standing — keep completing deals cleanly.' : 'Complete deals without issues to raise this.'}</p><div className="mini-bars"><i style={{ height: '44%', animationDelay: '0ms' }}></i><i style={{ height: '63%', animationDelay: '60ms' }}></i><i style={{ height: '56%', animationDelay: '120ms' }}></i><i style={{ height: '80%', animationDelay: '180ms' }}></i><i className="hot" style={{ height: '96%', animationDelay: '240ms' }}></i><i style={{ height: '72%', animationDelay: '300ms' }}></i><i style={{ height: '86%', animationDelay: '360ms' }}></i></div>{completedCount > 0 ? <small className="trend"><ArrowUpRight size={13} /> {completedCount} deal{completedCount === 1 ? '' : 's'} completed</small> : <small className="trend neutral">Complete a deal to start building trust.</small>}</div>
+          <div className="stats-card"><div className="section-label">YOUR TRUST SCORE <span>?</span></div><div className="score-row"><strong>{Math.round(trustScore)}</strong><span>/ 100</span><div className="score-ring"><ShieldCheck size={24} /></div></div><p>{trustScoreTarget >= 90 ? 'Excellent. You are building a trusted track record.' : trustScoreTarget >= 70 ? 'Good standing — keep completing deals cleanly.' : 'Complete deals without issues to raise this.'}</p><div className="mini-bars">{trustBarHeights.map((h, i) => <i key={i} className={i === 4 && trustScoreTarget >= 90 ? 'hot' : ''} style={{ height: `${h}%`, animationDelay: `${i * 60}ms` }}></i>)}</div>{completedCount > 0 ? <small className="trend"><ArrowUpRight size={13} /> {completedCount} deal{completedCount === 1 ? '' : 's'} completed</small> : <small className="trend neutral">Complete a deal to start building trust.</small>}</div>
         </section>
 
         {activeDeal && (
