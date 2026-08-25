@@ -200,8 +200,15 @@ async function handleChat(req, res) {
       }, { merge: true })
       await ref.collection('messages').add({ from: 'team', text: text || '', image: image || null, at })
     } else if (action === 'join') {
-      await ref.set({ email, status: 'active', agentName: agentName || 'Middleman Team' }, { merge: true })
-      await ref.collection('messages').add({ from: 'system', text: `${agentName || 'A Middleman agent'} has joined this chat.`, at })
+      // Someone typing their email into "your name" at the team gate
+      // shouldn't leak into what the customer sees — fall back to the
+      // local part of an email-shaped name, and always show as
+      // "Middleman <name>" so it reads as a brand, not a raw name.
+      const rawName = (agentName || '').trim()
+      const cleanName = rawName.includes('@') ? rawName.split('@')[0] : rawName
+      const displayName = cleanName ? `Middleman ${cleanName}` : 'Middleman Team'
+      await ref.set({ email, status: 'active', agentName: displayName }, { merge: true })
+      await ref.collection('messages').add({ from: 'system', text: `${displayName} has joined this chat.`, at })
     } else if (action === 'close') {
       await ref.set({ email, status: 'closed' }, { merge: true })
       await ref.collection('messages').add({ from: 'system', text: "This ticket has been closed. If you need anything else, message us again and we'll be right with you.", at })
@@ -219,10 +226,27 @@ async function handleChat(req, res) {
   res.status(405).json({ error: 'Method not allowed' })
 }
 
+async function handleAnalytics(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  // Count aggregation queries (Firestore server-side count, not a full doc
+  // read) keep this cheap even as users/deals grow — see
+  // src/utils/analytics.js + firestore.rules for how visits gets counted.
+  const [visitsSnap, usersCount, dealsCount] = await Promise.all([
+    db.collection('analytics').doc('visits').get(),
+    db.collection('users').count().get(),
+    db.collection('deals').count().get(),
+  ])
+  res.status(200).json({
+    totalVisits: visitsSnap.exists ? (visitsSnap.data().total || 0) : 0,
+    totalUsers: usersCount.data().count,
+    totalDeals: dealsCount.data().count,
+  })
+}
+
 const RESOURCES = {
   login: handleLogin, users: handleUsers, verifications: handleVerifications,
   deals: handleDeals, transactions: handleTransactions, refunds: handleRefunds, payouts: handlePayouts,
-  chat: handleChat,
+  chat: handleChat, analytics: handleAnalytics,
 }
 
 export default async function handler(req, res) {

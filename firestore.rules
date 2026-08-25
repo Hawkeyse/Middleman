@@ -133,6 +133,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // A single counter, bumped once per browser session from the landing
+    // page (see src/pages/Welcome.jsx) — team-only to read (admin SDK,
+    // api/team.js), but writable by anyone including signed-out visitors,
+    // since that's exactly who it's counting. Can only ever move forward by
+    // exactly 1 per write, never be set to an arbitrary value or backwards.
+    match /analytics/visits {
+      allow read: if false;
+      allow create: if request.resource.data.keys().hasOnly(['total']) && request.resource.data.total == 1;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['total']) &&
+        request.resource.data.total == resource.data.total + 1;
+      allow delete: if false;
+    }
+
     // Support chat. Doc ID is the customer's email. Every write — sending a
     // message (customer OR team), typing pings, join/close, marking read —
     // goes through api/customer.js / api/team.js instead of a direct client

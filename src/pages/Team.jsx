@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, Check, Flag, Headset, IdCard,
-  Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
+  LayoutDashboard, Lock, Receipt, TriangleAlert, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { typingFrom } from '../state/chat.js'
@@ -54,7 +54,7 @@ function TeamGate({ onUnlock }) {
         <p>Staff only. Enter your name and the team passcode to review verifications, users and support chats.</p>
         {error && <div className="team-error">{error}</div>}
         <form onSubmit={submit}>
-          <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+          <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your first name (shown to customers)" />
           <input type="password" value={code} onChange={(e) => { setCode(e.target.value); setError('') }} placeholder="Team passcode" />
           <button type="submit" disabled={checking}>{checking ? 'Checking…' : 'Unlock'}</button>
         </form>
@@ -67,7 +67,7 @@ function TeamGate({ onUnlock }) {
 function Team() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('mm_team_unlocked') === 'true')
   const agentName = sessionStorage.getItem('mm_team_agent_name') || 'Middleman Team'
-  const [section, setSection] = useState('verifications')
+  const [section, setSection] = useState('overview')
   const unreadTotal = useChatNotify({ role: 'team', title: 'Middleman Support', active: unlocked })
 
   const [records, setRecords] = useState([])
@@ -93,6 +93,8 @@ function Team() {
   const [refunds, setRefunds] = useState([])
   const [payouts, setPayouts] = useState([])
 
+  const [analytics, setAnalytics] = useState({ totalVisits: 0, totalUsers: 0, totalDeals: 0 })
+
   const refresh = () => {
     teamFetch('/api/team?resource=verifications').then((data) => setRecords(data.records)).catch(() => {})
     teamFetch('/api/team?resource=chat').then((data) => setThreads(data.threads)).catch(() => {})
@@ -101,6 +103,7 @@ function Team() {
     teamFetch('/api/team?resource=deals').then((data) => setDeals(data.deals)).catch(() => {})
     teamFetch('/api/team?resource=refunds').then((data) => setRefunds(data.requests)).catch(() => {})
     teamFetch('/api/team?resource=payouts').then((data) => setPayouts(data.requests)).catch(() => {})
+    teamFetch('/api/team?resource=analytics').then(setAnalytics).catch(() => {})
   }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
@@ -197,6 +200,7 @@ function Team() {
         <Link className="team-back-link" to="/"><ArrowLeft size={14} /> Exit</Link>
         <div className="team-brand"><img src="/middleman-logo.png" alt="Middleman" /><span>middleman team</span></div>
         <div className="team-tabs">
+          <button className={section === 'overview' ? 'active' : ''} onClick={() => setSection('overview')}><LayoutDashboard size={14} /> Overview</button>
           <button className={section === 'verifications' ? 'active' : ''} onClick={() => setSection('verifications')}><IdCard size={14} /> Verifications{records.filter((r) => r.status === 'pending').length > 0 && <i>{records.filter((r) => r.status === 'pending').length}</i>}</button>
           <button className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><UsersIcon size={14} /> Users</button>
           <button className={section === 'disputes' ? 'active' : ''} onClick={() => setSection('disputes')}><Flag size={14} /> Disputes{openDisputeCount > 0 && <i>{openDisputeCount}</i>}</button>
@@ -205,6 +209,29 @@ function Team() {
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
         </div>
       </header>
+
+      {section === 'overview' && (
+        <div className="team-tx-page">
+          <div className="team-overview-grid">
+            <div className="team-overview-card">
+              <span>SITE VISITS</span>
+              <strong>{analytics.totalVisits.toLocaleString()}</strong>
+            </div>
+            <div className="team-overview-card">
+              <span>SIGNUPS</span>
+              <strong>{analytics.totalUsers.toLocaleString()}</strong>
+            </div>
+            <div className="team-overview-card">
+              <span>DEALS CREATED</span>
+              <strong>{analytics.totalDeals.toLocaleString()}</strong>
+            </div>
+          </div>
+          <div className="team-revenue-banner">
+            <div><span>TOTAL FEES COLLECTED</span><strong>{totalFeesDisplay}</strong></div>
+            <div className="team-revenue-note">Settles into the Middleman Paystack balance automatically. Manually reconcile to <b>Telecel MoMo 233 504 919 423</b>.</div>
+          </div>
+        </div>
+      )}
 
       {section === 'verifications' && (
         <div className={`team-split ${selected ? 'has-selection' : ''}`}>

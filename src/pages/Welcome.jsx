@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, Globe, Lock, ShieldCheck, Sparkles, Star } from 'lucide-react'
 import { useAppState } from '../state/AppState.jsx'
+import { recordVisit } from '../utils/analytics.js'
 import './Welcome.css'
 
 const steps = [
@@ -19,6 +21,8 @@ function Welcome() {
   const navigate = useNavigate()
   const { authed } = useAppState()
   const primaryAction = () => navigate(authed ? '/dashboard' : '/signup')
+
+  useEffect(() => { recordVisit() }, [])
 
   return (
     <div className="welcome">

@@ -113,6 +113,10 @@
 .team-revenue-banner strong{color:var(--blue);font:700 20px 'Space Grotesk',sans-serif}
 .team-revenue-note{color:#586380;font-size:11px;line-height:1.5;max-width:340px}
 .team-revenue-note b{color:var(--ink)}
+.team-overview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:900px;margin:0 auto 16px}
+.team-overview-card{display:grid;gap:6px;padding:18px;border-radius:12px;border:1px solid var(--line);background:#fff}
+.team-overview-card span{color:#9ca7ba;font-size:10px;font-weight:700;letter-spacing:1px}
+.team-overview-card strong{font:700 26px 'Space Grotesk',sans-serif;color:var(--ink)}
 .team-payout-info{margin:14px 0;padding:12px 14px;border-radius:10px;background:#fbfcff;border:1px solid var(--line)}
 .team-payout-info p{margin:6px 0 0;color:var(--ink);font-size:12.5px}
 .team-payout-info p.muted{color:#9ca7ba;font-style:italic}
@@ -145,6 +149,7 @@
 
   .team-tx-page{padding:16px}
   .team-revenue-banner{flex-direction:column;align-items:flex-start}
+  .team-overview-grid{grid-template-columns:1fr}
   .team-tx-row{flex-wrap:wrap}
   .team-tx-row>div{flex-basis:100%;order:1}
   .team-tx-date{order:2}
