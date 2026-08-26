@@ -93,6 +93,7 @@ function Welcome() {
       <footer className="welcome-footer">
         <span>© 2026 Middleman. Built for buyers and sellers everywhere.</span>
         <div className="welcome-footer-links">
+          <Link className="ghost-link" to="/faq">FAQ</Link>
           <Link className="ghost-link" to="/terms">Terms of Service</Link>
           <Link className="ghost-link team-link" to="/team" title="Middleman Team" aria-label="Middleman Team"><Lock size={13} /></Link>
           {authed ? <Link className="ghost-link" to="/dashboard">Dashboard <ArrowUpRight size={14} /></Link> : <Link className="ghost-link" to="/login">Log in <ArrowUpRight size={14} /></Link>}

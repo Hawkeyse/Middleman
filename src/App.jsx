@@ -15,6 +15,7 @@ const Verify = lazy(() => import('./pages/Verify.jsx'))
 const Invite = lazy(() => import('./pages/Invite.jsx'))
 const Team = lazy(() => import('./pages/Team.jsx'))
 const Terms = lazy(() => import('./pages/Terms.jsx'))
+const Faq = lazy(() => import('./pages/Faq.jsx'))
 const PublicProfile = lazy(() => import('./pages/PublicProfile.jsx'))
 
 function RequireAuth({ children }) {
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="/u/:username" element={<PublicProfile />} />
         <Route path="/team" element={<Team />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/faq" element={<Faq />} />
         <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/verify" element={<RequireAuth><Verify /></RequireAuth>} />
