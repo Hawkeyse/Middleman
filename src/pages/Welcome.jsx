@@ -6,7 +6,7 @@ import { recordVisit } from '../utils/analytics.js'
 import './Welcome.css'
 
 const steps = [
-  { icon: '/steps/pay.png', tag: '01 · SEND', title: 'You pay Middleman', body: 'Not the seller. Your money moves into your Middleman wallet, locked and untouchable.' },
+  { icon: '/icons/wallet.png', tag: '01 · SEND', title: 'You pay Middleman', body: 'Not the seller. Your money moves into your Middleman wallet, locked and untouchable.' },
   { icon: '/steps/hold.png', tag: '02 · HOLD', title: 'We hold it safe', body: 'Seller ships once payment is confirmed. Funds stay locked until you get your package.' },
   { icon: '/steps/checked.png', tag: '03 · RELEASE', title: 'You confirm, we release', body: 'Package don land? One tap and the seller gets paid instantly. Everybody wins.' },
 ]
