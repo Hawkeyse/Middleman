@@ -1,3 +1,17 @@
+/* Same page shell as Terms.jsx (Terms.css), copied in rather than shared
+   as an import — Vite/Rolldown wasn't reliably carrying Terms.css's
+   preload along when it was imported from two different lazy routes. */
+.terms-page{min-height:100vh;background:#f6f8fc}
+.terms-nav{display:flex;align-items:center;justify-content:space-between;padding:22px clamp(20px,5vw,48px)}
+.terms-back{display:inline-flex;align-items:center;gap:6px;color:#7885a8;font-size:12px;font-weight:600;text-decoration:none}
+.terms-back:hover{color:var(--blue)}
+.terms-brand{display:flex;align-items:center;gap:9px}
+.terms-brand img{width:26px;height:26px;border-radius:7px}
+.terms-brand span{font:700 13px 'Space Grotesk',sans-serif;color:var(--ink)}
+.terms-card{width:min(100%,720px);margin:10px auto 70px;padding:40px clamp(24px,5vw,56px) 50px;border-radius:16px;background:#fff;border:1px solid var(--line);box-shadow:0 20px 45px #2739660f}
+.terms-card h1{margin:0 0 6px;color:var(--ink);font:700 clamp(26px,3.4vw,34px) 'Space Grotesk',sans-serif;letter-spacing:-1px}
+.terms-updated{margin:0 0 28px;color:#9ca7ba;font-size:12px}
+
 .faq-list{display:flex;flex-direction:column;gap:10px;margin:8px 0 30px}
 .faq-item{border:1px solid var(--line);border-radius:12px;background:#fbfcff;overflow:hidden}
 .faq-item.open{border-color:#c7d2ec;background:#fff}
