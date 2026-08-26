@@ -29,8 +29,13 @@ export default async function handler(req, res) {
         const { subject, html } = emailTemplates.resetPassword({ link, email })
         await sendMail({ to: email, subject, html })
       } catch (err) {
-        // Don't leak whether the account exists.
-        if (err.code !== 'auth/user-not-found') throw err
+        // Never let the response reveal whether the account exists or the
+        // send failed — Firebase itself returns a generic auth/internal-error
+        // (not auth/user-not-found) for an unknown email when Email
+        // Enumeration Protection is on, so every failure here is swallowed
+        // the same way rather than trying to distinguish "not found" from
+        // "something broke".
+        console.error('password reset email failed', err)
       }
       return res.status(200).json({ ok: true })
     }
