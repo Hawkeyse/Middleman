@@ -1,5 +1,5 @@
 import { adminAuth } from './_lib/firebaseAdmin.js'
-import { sendMail, emailTemplates } from './_lib/mailer.js'
+import { sendMail, emailTemplates, notify } from './_lib/mailer.js'
 
 // Firebase's own template system can't be edited past sender/reply-to, so
 // verify-email and password-reset are sent from here instead: generate the
@@ -65,6 +65,16 @@ export default async function handler(req, res) {
       const link = toDirectActionLink(rawLink, appOrigin)
       const { subject, html } = emailTemplates.verifyEmail({ link, displayName: decoded.name || '' })
       await sendMail({ to: decoded.email, subject, html })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (type === 'passwordChanged') {
+      const authHeader = req.headers.authorization || ''
+      const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      if (!idToken) return res.status(401).json({ error: 'Not signed in' })
+      const decoded = await adminAuth.verifyIdToken(idToken)
+      if (!decoded.email) return res.status(401).json({ error: 'Account has no email' })
+      await notify(decoded.email, emailTemplates.passwordChanged())
       return res.status(200).json({ ok: true })
     }
 

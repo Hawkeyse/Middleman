@@ -10,6 +10,7 @@ import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
 import { resizeImageToDataUrl } from '../utils/resizeImage.js'
 import { changePassword, authErrorMessage } from '../utils/auth.js'
+import { authedFetch } from '../utils/authedFetch.js'
 import { usePinConfirm } from '../hooks/usePinConfirm.jsx'
 import TrustCard from '../components/TrustCard.jsx'
 import './Profile.css'
@@ -207,6 +208,7 @@ function Profile() {
     setPasswordSaving(true)
     try {
       await changePassword(passwordForm.current, passwordForm.next)
+      authedFetch('/api/auth-email', { body: { type: 'passwordChanged' } }).catch(() => {})
       setPasswordForm({ current: '', next: '', confirm: '' })
       setPasswordSaved(true)
       window.setTimeout(() => setPasswordSaved(false), 2500)

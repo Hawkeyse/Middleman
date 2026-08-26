@@ -142,6 +142,19 @@ export const emailTemplates = {
       }),
     }
   },
+  passwordChanged() {
+    return {
+      subject: 'Your Middleman password was changed',
+      html: shell({
+        heading: 'Password changed',
+        bodyHtml: 'The password on your Middleman account was just changed. If this was you, no action is needed.',
+        ctaText: "It wasn't me — reset it",
+        ctaLink: 'https://middlemansecure.com/forgot-password',
+        footerNote: "If you didn't make this change, reset your password right away and contact Support in the app.",
+        showRawLink: false,
+      }),
+    }
+  },
   unbanned() {
     return {
       subject: 'Your Middleman account has been restored',
