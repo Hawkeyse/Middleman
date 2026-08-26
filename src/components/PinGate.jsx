@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppState } from '../state/AppState.jsx'
+import { hashPin, pinStorageKey } from '../utils/pin.js'
+import PinInput, { PIN_LENGTH } from './PinInput.jsx'
 import './PinGate.css'
 
-const LENGTH = 5
 const MAX_ATTEMPTS = 5
 
 // A device-local "quick unlock" screen shown after a real email+password
@@ -12,52 +13,12 @@ const MAX_ATTEMPTS = 5
 // directly doesn't recover the PIN. This can only ever gate access on a
 // device that's already holding a valid Firebase session; it's a privacy
 // screen (stop someone glancing at an unlocked laptop), not a replacement
-// for the real login.
-async function hashPin(pin) {
-  const data = new TextEncoder().encode(pin)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-function PinBoxes({ value, shake }) {
-  return (
-    <div className={`pin-boxes${shake ? ' shake' : ''}`}>
-      {Array.from({ length: LENGTH }).map((_, i) => (
-        <div key={i} className={`pin-box${value[i] ? ' filled' : ''}`}>{value[i] || ''}</div>
-      ))}
-    </div>
-  )
-}
-
-// One hidden numeric input drives all 5 boxes — far more robust than
-// juggling refs/focus across five separate inputs (still handles paste,
-// backspace, and a real numeric keyboard on mobile for free).
-function PinInput({ value, onChange, autoFocus, shake, disabled }) {
-  const inputRef = useRef(null)
-  useEffect(() => { if (autoFocus) inputRef.current?.focus() }, [autoFocus])
-  return (
-    <div className="pin-input-wrap" onClick={() => inputRef.current?.focus()}>
-      <PinBoxes value={value} shake={shake} />
-      <input
-        ref={inputRef}
-        className="pin-hidden-input"
-        type="tel"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={LENGTH}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, LENGTH))}
-      />
-    </div>
-  )
-}
-
+// for the real login. Mandatory — every account needs one, since the same
+// PIN is also required again before money moves (see usePinConfirm).
 function PinGate({ children }) {
   const { user, logout } = useAppState()
   const email = user.email
-  const storageKey = `mm_pin_hash_${email}`
-  const skipKey = `mm_pin_skip_${email}`
+  const storageKey = pinStorageKey(email)
   const sessionKey = `mm_pin_unlocked_${email}`
 
   // user.email lands a beat after `authed` flips true (it's filled in by a
@@ -71,9 +32,9 @@ function PinGate({ children }) {
     if (!email) return
     if (sessionStorage.getItem(sessionKey) === '1') { setMode('none'); return }
     if (localStorage.getItem(storageKey)) { setMode('locked'); return }
-    if (localStorage.getItem(skipKey)) { setMode('none'); return }
     setMode('setup-enter')
-  }, [email, sessionKey, storageKey, skipKey])
+  }, [email, sessionKey, storageKey])
+
   const [value, setValue] = useState('')
   const [firstEntry, setFirstEntry] = useState('')
   const [error, setError] = useState('')
@@ -89,7 +50,7 @@ function PinGate({ children }) {
   }
 
   useEffect(() => {
-    if (value.length < LENGTH || busy) return
+    if (value.length < PIN_LENGTH || busy) return
 
     if (mode === 'setup-enter') {
       setFirstEntry(value)
@@ -135,12 +96,6 @@ function PinGate({ children }) {
   if (mode === 'checking') return null
   if (mode === 'none') return children
 
-  const skip = () => {
-    localStorage.setItem(skipKey, '1')
-    sessionStorage.setItem(sessionKey, '1')
-    setMode('none')
-  }
-
   const forgotPin = () => {
     localStorage.removeItem(storageKey)
     logout()
@@ -153,11 +108,10 @@ function PinGate({ children }) {
 
         {mode === 'setup-enter' && (
           <>
-            <h2>Set up a quick PIN</h2>
-            <p>Choose a 5-digit PIN so you can unlock Middleman faster on this device next time.</p>
+            <h2>Set up your PIN</h2>
+            <p>Choose a 5-digit PIN. You'll use it to unlock Middleman on this device and to confirm deposits, withdrawals, and account changes.</p>
             {error && <div className="pin-gate-error">{error}</div>}
             <PinInput value={value} onChange={setValue} autoFocus />
-            <button className="pin-skip" onClick={skip}>Skip for now</button>
           </>
         )}
 

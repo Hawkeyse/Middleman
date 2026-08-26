@@ -9,6 +9,8 @@ import { payoutOptionsForCountry } from '../state/payoutOptions.js'
 import { listDealsFor } from '../state/deals.js'
 import { calcTrustScore } from '../utils/trustScore.js'
 import { resizeImageToDataUrl } from '../utils/resizeImage.js'
+import { changePassword, authErrorMessage } from '../utils/auth.js'
+import { usePinConfirm } from '../hooks/usePinConfirm.jsx'
 import TrustCard from '../components/TrustCard.jsx'
 import './Profile.css'
 
@@ -19,6 +21,7 @@ function Profile() {
   const { user, setUser, verification, verificationMeta, logout, refreshVerification, accountStatus, refreshAccountStatus } = useAppState()
   const [form, setForm] = useState(user)
   const [saved, setSaved] = useState(false)
+  const { confirmPin, pinConfirmModal } = usePinConfirm()
 
   // Which payout options make sense depends on the seller's verified
   // country — Ghana is mobile-money-first, Nigeria is bank/fintech-account-
@@ -186,6 +189,32 @@ function Profile() {
     setEditingPayout(false)
     setPayoutSaved(true)
     window.setTimeout(() => setPayoutSaved(false), 1800)
+  }
+
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' })
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordSaved, setPasswordSaved] = useState(false)
+  const updatePasswordField = (key) => (e) => setPasswordForm((f) => ({ ...f, [key]: e.target.value }))
+
+  const submitPasswordChange = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    if (!passwordForm.current) { setPasswordError('Enter your current password.'); return }
+    if (passwordForm.next.length < 6) { setPasswordError('New password should be at least 6 characters.'); return }
+    if (passwordForm.next !== passwordForm.confirm) { setPasswordError("New passwords don't match."); return }
+    if (!(await confirmPin())) return
+    setPasswordSaving(true)
+    try {
+      await changePassword(passwordForm.current, passwordForm.next)
+      setPasswordForm({ current: '', next: '', confirm: '' })
+      setPasswordSaved(true)
+      window.setTimeout(() => setPasswordSaved(false), 2500)
+    } catch (err) {
+      setPasswordError(authErrorMessage(err))
+    } finally {
+      setPasswordSaving(false)
+    }
   }
 
   const signOut = () => { logout(); navigate('/') }
@@ -405,8 +434,22 @@ function Profile() {
               </form>
             )}
           </div>
+
+          <form className="profile-card" onSubmit={submitPasswordChange}>
+            <span className="section-label">PASSWORD</span>
+            <p>Change your login password. You'll need to confirm your PIN before it's applied.</p>
+            {passwordSaved && <div className="payout-saved-note"><Check size={13} /> Password updated</div>}
+            {passwordError && <p className="invite-error"><Icon name="alarm" size={13} /> {passwordError}</p>}
+
+            <div className="profile-field"><label htmlFor="p-current-password">Current password</label><input id="p-current-password" type="password" value={passwordForm.current} onChange={updatePasswordField('current')} placeholder="Your current password" /></div>
+            <div className="profile-field"><label htmlFor="p-new-password">New password</label><input id="p-new-password" type="password" value={passwordForm.next} onChange={updatePasswordField('next')} placeholder="At least 6 characters" /></div>
+            <div className="profile-field"><label htmlFor="p-confirm-password">Confirm new password</label><input id="p-confirm-password" type="password" value={passwordForm.confirm} onChange={updatePasswordField('confirm')} placeholder="Type it again" /></div>
+
+            <button className="profile-save" type="submit" disabled={passwordSaving}>{passwordSaving ? 'Updating…' : 'Update password'}</button>
+          </form>
         </div>
       </main>
+      {pinConfirmModal}
     </div>
   )
 }

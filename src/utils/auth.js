@@ -9,6 +9,9 @@ import {
   verifyPasswordResetCode,
   confirmPasswordReset,
   applyActionCode,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
 } from 'firebase/auth'
 import { auth } from '../lib/firebase.js'
 import { authedFetch } from './authedFetch.js'
@@ -74,6 +77,17 @@ export async function confirmReset(oobCode, newPassword) {
 export async function verifyEmailCode(oobCode) {
   await applyActionCode(auth, oobCode)
   if (auth.currentUser) await auth.currentUser.reload()
+}
+
+// Firebase rejects updatePassword on a session that isn't "recent" —
+// reauthenticating with the current password right before satisfies that,
+// and doubles as proving they actually know the current password.
+export async function changePassword(currentPassword, newPassword) {
+  const user = auth.currentUser
+  if (!user) throw new Error('You need to be signed in.')
+  const credential = EmailAuthProvider.credential(user.email, currentPassword)
+  await reauthenticateWithCredential(user, credential)
+  await updatePassword(user, newPassword)
 }
 
 export async function signOutUser() {

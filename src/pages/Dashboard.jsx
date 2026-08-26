@@ -8,6 +8,7 @@ import Icon from '../components/Icon.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { useAppState } from '../state/AppState.jsx'
 import { useChatNotify } from '../hooks/useChatNotify.js'
+import { usePinConfirm } from '../hooks/usePinConfirm.jsx'
 import { cancelDeal, createDeal, disputeDeal, listDealsFor, releaseDeal } from '../state/deals.js'
 import { listTransactionsFor } from '../state/transactions.js'
 import { creditDeposit, getWalletBalance, requestRefund } from '../state/wallet.js'
@@ -53,6 +54,7 @@ function Dashboard() {
   const navigate = useNavigate()
   const { user, verification, accountStatus } = useAppState()
   const unreadSupport = useChatNotify({ email: user.email, role: 'customer', title: 'Middleman Support' })
+  const { confirmPin, pinConfirmModal } = usePinConfirm()
   const [activeTab, setActiveTab] = useState('Overview')
   const [warningDismissed, setWarningDismissed] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -239,6 +241,7 @@ function Dashboard() {
   const submitDeposit = async (e) => {
     e.preventDefault()
     setDepositError('')
+    if (!(await confirmPin())) return
     setDepositing(true)
     try {
       const { provider, reference } = await payWithProvider({
@@ -264,6 +267,7 @@ function Dashboard() {
     const available = walletBalances[refundForm.currency] || 0
     if (!amt || amt <= 0) { setRefundError('Enter an amount.'); return }
     if (amt > available) { setRefundError(`You only have ${symbolFor(refundForm.currency)} ${money(available)} available.`); return }
+    if (!(await confirmPin())) return
     try {
       await requestRefund({ amount: amt, currency: refundForm.currency, note: refundForm.note })
       setRefundError('')
@@ -282,6 +286,7 @@ function Dashboard() {
     if (!amt || amt <= 0) { setPayoutRequestError('Enter an amount.'); return }
     if (amt > available) { setPayoutRequestError(`You only have ${symbolFor(payoutRequestForm.currency)} ${money(available)} available.`); return }
     if (!hasPayoutMethod) { setPayoutRequestError('Add a payout method in your profile first.'); return }
+    if (!(await confirmPin())) return
     try {
       await requestPayout({ amount: amt, currency: payoutRequestForm.currency, note: payoutRequestForm.note })
       setPayoutRequestError('')
@@ -687,6 +692,7 @@ function Dashboard() {
       </div></div>}
 
       {supportOpen && <SupportChat email={user.email} name={user.name} onClose={() => setSupportOpen(false)} />}
+      {pinConfirmModal}
     </div>
   )
 }
