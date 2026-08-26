@@ -1,20 +1,21 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppStateProvider, useAppState } from './state/AppState.jsx'
 import LoadingScreen from './components/LoadingScreen.jsx'
 import BannedScreen from './components/BannedScreen.jsx'
 import WarningGate from './components/WarningGate.jsx'
-import Welcome from './pages/Welcome.jsx'
-import Signup from './pages/Signup.jsx'
-import Login from './pages/Login.jsx'
-import ForgotPassword from './pages/ForgotPassword.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Profile from './pages/Profile.jsx'
-import Verify from './pages/Verify.jsx'
-import Invite from './pages/Invite.jsx'
-import Team from './pages/Team.jsx'
-import Terms from './pages/Terms.jsx'
-import PublicProfile from './pages/PublicProfile.jsx'
+
+const Welcome = lazy(() => import('./pages/Welcome.jsx'))
+const Signup = lazy(() => import('./pages/Signup.jsx'))
+const Login = lazy(() => import('./pages/Login.jsx'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'))
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const Profile = lazy(() => import('./pages/Profile.jsx'))
+const Verify = lazy(() => import('./pages/Verify.jsx'))
+const Invite = lazy(() => import('./pages/Invite.jsx'))
+const Team = lazy(() => import('./pages/Team.jsx'))
+const Terms = lazy(() => import('./pages/Terms.jsx'))
+const PublicProfile = lazy(() => import('./pages/PublicProfile.jsx'))
 
 function RequireAuth({ children }) {
   const { authed, authChecked, banned } = useAppState()
@@ -26,20 +27,22 @@ function RequireAuth({ children }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/" element={<Welcome />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/invite/:code" element={<Invite />} />
-      <Route path="/u/:username" element={<PublicProfile />} />
-      <Route path="/team" element={<Team />} />
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
-      <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
-      <Route path="/verify" element={<RequireAuth><Verify /></RequireAuth>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route path="/" element={<Welcome />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/invite/:code" element={<Invite />} />
+        <Route path="/u/:username" element={<PublicProfile />} />
+        <Route path="/team" element={<Team />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/verify" element={<RequireAuth><Verify /></RequireAuth>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 
