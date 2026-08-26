@@ -388,6 +388,7 @@ function Dashboard() {
           {verification !== 'verified' && <button className="trust-note gate-note" onClick={() => navigate('/verify', { state: { from: '/dashboard' } })}><Icon name={verification === 'pending' ? 'pending' : 'alarm'} size={19} /><div><b>{verification === 'pending' ? 'Verification pending' : 'Verify your identity'}</b><span>{verification === 'pending' ? "We're reviewing your documents." : 'Required before you can deal.'}</span></div></button>}
           {verification === 'verified' && <div className="trust-note"><Icon name="verified" size={19} /><div><b>Protected by design</b><span>Your money moves when you say so.</span></div></div>}
           <button className="nav-item" onClick={() => setSupportOpen(true)}><Icon name="support" size={18} />Help center</button>
+          <a className="nav-item" href="/faq" target="_blank" rel="noopener noreferrer"><CircleHelp size={18} />FAQ</a>
           <Link className="profile" to="/profile"><Avatar name={user.name || 'A'} avatarUrl={accountStatus?.avatarUrl} size={28} className="avatar avatar-orange" /><span><b>{user.name || 'Complete your profile'}</b><small>{user.email || 'Add your email'}</small></span><ChevronDown size={15} /></Link>
         </div>
       </aside>

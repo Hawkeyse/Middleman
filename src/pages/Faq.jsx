@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ChevronDown } from 'lucide-react'
+import './Terms.css'
 import './Faq.css'
 
 const faqs = [
