@@ -71,6 +71,20 @@
 /* ---- payout method ---- */
 .trust-card-panel{grid-column:1/-1;animation-delay:100ms;text-align:center}
 .trust-card-panel>p{margin:6px 0 20px;color:var(--muted);font-size:12.5px;line-height:1.6}
+
+.premium-status{margin:16px 0 10px;color:#c98910;font-size:12.5px;font-weight:700}
+.premium-pitch{margin:16px 0 14px;color:var(--muted);font-size:12.5px;line-height:1.6}
+.premium-cta{background:linear-gradient(135deg,#f6d365,#c98910);box-shadow:0 8px 18px #c9891033}
+.premium-renew{margin-top:18px;padding:10px 18px;border:1px solid var(--line);border-radius:9px;background:#fbfcff;color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer}
+.premium-renew:hover{border-color:#c98910}
+.card-designer-label{display:block;margin:16px 0 8px;color:#9ca7ba;font-size:10px;font-weight:700;letter-spacing:1px;text-align:left}
+.swatch-row{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{width:34px;height:34px;border-radius:10px;border:2px solid transparent;cursor:pointer;transition:transform .15s ease}
+.swatch:hover{transform:scale(1.08)}
+.swatch.active{border-color:var(--ink);box-shadow:0 0 0 2px #fff inset}
+.font-row{display:flex;gap:8px;flex-wrap:wrap}
+.font-chip{padding:8px 14px;border:1px solid var(--line);border-radius:9px;background:#fbfcff;color:var(--ink);font-size:14px;cursor:pointer}
+.font-chip.active{border-color:var(--blue);background:#edf2ff;color:var(--blue)}
 .payout-card{grid-column:1/-1;animation-delay:120ms}
 .payout-card>p{margin:6px 0 16px;color:var(--muted);font-size:12.5px;line-height:1.6}
 .payout-saved-note{display:flex;align-items:center;gap:6px;margin-bottom:14px;padding:9px 12px;border-radius:8px;background:#e5f8f0;color:#0e7a52;font-size:12px;font-weight:600}

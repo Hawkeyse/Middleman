@@ -12,6 +12,10 @@ import { resizeImageToDataUrl } from '../utils/resizeImage.js'
 import { changePassword, authErrorMessage } from '../utils/auth.js'
 import { authedFetch } from '../utils/authedFetch.js'
 import { usePinConfirm } from '../hooks/usePinConfirm.jsx'
+import { payWithProvider, verifyProviderPayment } from '../utils/payments.js'
+import { currencyForCountry, symbolFor } from '../utils/currencies.js'
+import { isPremiumActive, upgradePremium, saveProfileCard } from '../state/premium.js'
+import { CARD_BACKGROUNDS, CARD_FONTS, backgroundById, fontById } from '../utils/profileCardPresets.js'
 import TrustCard from '../components/TrustCard.jsx'
 import './Profile.css'
 
@@ -219,6 +223,56 @@ function Profile() {
     }
   }
 
+  // $3/month, manually renewed — see api/customer.js's upgradePremium. The
+  // amount is an approximate local-currency equivalent (same "what's shown
+  // at checkout is what's charged" approach as deal fees); the server is
+  // the one that actually checks it's close enough to $3.
+  const PREMIUM_LOCAL_AMOUNT = { GHS: 45, NGN: 4700, USD: 3 }
+  const premiumCurrency = currencyForCountry(verificationMeta?.country)
+  const premiumAmount = PREMIUM_LOCAL_AMOUNT[premiumCurrency] ?? PREMIUM_LOCAL_AMOUNT.USD
+  const premiumUntil = accountStatus?.premiumUntil
+  const premiumActive = isPremiumActive(premiumUntil)
+  const [premiumPaying, setPremiumPaying] = useState(false)
+  const [premiumError, setPremiumError] = useState('')
+  const [premiumSaved, setPremiumSaved] = useState(false)
+  const [cardBg, setCardBg] = useState(accountStatus?.profileCard?.bg || CARD_BACKGROUNDS[5].id)
+  const [cardFont, setCardFont] = useState(accountStatus?.profileCard?.font || CARD_FONTS[0].id)
+
+  useEffect(() => {
+    if (accountStatus?.profileCard) {
+      setCardBg(accountStatus.profileCard.bg || CARD_BACKGROUNDS[5].id)
+      setCardFont(accountStatus.profileCard.font || CARD_FONTS[0].id)
+    }
+  }, [accountStatus?.profileCard])
+
+  const goPremium = async () => {
+    setPremiumError('')
+    if (!(await confirmPin())) return
+    setPremiumPaying(true)
+    try {
+      const { provider, reference } = await payWithProvider({
+        email: user.email, amount: premiumAmount, currency: premiumCurrency,
+        dealCode: `PREMIUM-${Date.now().toString(36).toUpperCase()}`,
+      })
+      const verified = await verifyProviderPayment(provider, reference)
+      if (verified.status !== 'success') throw new Error('Payment was not successful. Premium was not activated.')
+      await upgradePremium(provider, reference)
+      await refreshAccountStatus()
+      setPremiumSaved(true)
+      window.setTimeout(() => setPremiumSaved(false), 2500)
+    } catch (err) {
+      setPremiumError(err.message || 'Could not activate Premium. Please try again.')
+    } finally {
+      setPremiumPaying(false)
+    }
+  }
+
+  const chooseCardDesign = async (bg, font) => {
+    setCardBg(bg)
+    setCardFont(font)
+    await saveProfileCard(user.email, { bg, font })
+  }
+
   const signOut = () => { logout(); navigate('/') }
 
   return (
@@ -371,7 +425,46 @@ function Profile() {
               soldCount={soldCount}
               verified={verification === 'verified'}
               memberSince={memberSince}
+              premium={premiumActive}
+              cardStyle={premiumActive ? { bg: backgroundById(cardBg).colors, fontFamily: fontById(cardFont).family } : null}
             />
+
+            {premiumError && <p className="invite-error"><Icon name="alarm" size={13} /> {premiumError}</p>}
+
+            {premiumActive ? (
+              <>
+                {premiumSaved && <div className="payout-saved-note"><Check size={13} /> Design saved</div>}
+                <p className="premium-status">★ Premium active until {new Date(premiumUntil).toLocaleDateString()}</p>
+
+                <span className="card-designer-label">Background</span>
+                <div className="swatch-row">
+                  {CARD_BACKGROUNDS.map((b) => (
+                    <button key={b.id} type="button" title={b.label} className={`swatch${cardBg === b.id ? ' active' : ''}`}
+                      style={{ background: `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` }}
+                      onClick={() => chooseCardDesign(b.id, cardFont)} />
+                  ))}
+                </div>
+
+                <span className="card-designer-label">Font</span>
+                <div className="font-row">
+                  {CARD_FONTS.map((f) => (
+                    <button key={f.id} type="button" className={`font-chip${cardFont === f.id ? ' active' : ''}`}
+                      style={{ fontFamily: f.family }} onClick={() => chooseCardDesign(cardBg, f.id)}>{f.label}</button>
+                  ))}
+                </div>
+
+                <button type="button" className="premium-renew" onClick={goPremium} disabled={premiumPaying}>
+                  {premiumPaying ? 'Processing…' : `Renew another month — ${symbolFor(premiumCurrency)}${premiumAmount}`}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="premium-pitch">Go Premium to unlock a fully custom design for this card — your background, your font — plus a premium badge on your public profile.</p>
+                <button type="button" className="profile-save premium-cta" onClick={goPremium} disabled={premiumPaying}>
+                  {premiumPaying ? <><Loader2 size={15} className="spin" /> Processing…</> : `★ Go Premium — ${symbolFor(premiumCurrency)}${premiumAmount}/mo`}
+                </button>
+              </>
+            )}
           </div>
 
           <div className="profile-card payout-card">

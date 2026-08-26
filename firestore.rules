@@ -43,9 +43,14 @@ service cloud.firestore {
       // api/team.js's warn action) is deliberately absent from the allowed
       // fields below — the client can only move it via acknowledgeWarning/
       // completeCooldown in api/customer.js, never by writing it directly.
+      // premiumUntil is likewise absent — only api/customer.js's
+      // upgradePremium can set it, after verifying a real payment.
+      // profileCard (the Trust Card's background/font choice) is harmless
+      // on its own — it only ever renders styled if premiumUntil is
+      // actually active, so it's fine to let the client set it directly.
       allow update: if isMe(email) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'username', 'phone', 'payoutMethod', 'avatarUrl', 'countryIso']) &&
+          .hasOnly(['name', 'username', 'phone', 'payoutMethod', 'avatarUrl', 'countryIso', 'profileCard']) &&
         (request.resource.data.username == resource.data.username || resource.data.username == '');
       allow delete: if false;
     }

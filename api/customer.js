@@ -167,6 +167,44 @@ async function depositWallet(email, { provider, reference }) {
   return { entry: { id: entryRef.id, ...entry } }
 }
 
+const PREMIUM_MONTH_MS = 30 * 24 * 60 * 60 * 1000
+
+// $3/month, manually renewed (no card-on-file recurring billing) — reuses
+// the same one-time payment rails as a wallet deposit. Guarded the same way
+// depositWallet is (a doc keyed on provider:reference) so a client retry
+// can't stack multiple months onto one payment. Amount is checked in USD
+// terms with a 10% band either side, since the client sends whatever local-
+// currency amount it showed at checkout and FX drifts between then and now.
+async function upgradePremium(email, { provider, reference }) {
+  if (!provider || !reference) throw Object.assign(new Error('provider and reference are required'), { status: 400 })
+
+  const guardRef = db.collection('premium_payments').doc(`${provider}:${reference}`)
+  const existing = await guardRef.get()
+  if (existing.exists) return { premiumUntil: existing.data().premiumUntil, alreadyCredited: true }
+
+  const verified = await verifyProviderPayment(provider, reference)
+  if (verified.status !== 'success') throw Object.assign(new Error('Payment was not successful. Premium was not applied.'), { status: 402 })
+
+  const rate = await usdRate(verified.currency)
+  const usdAmount = verified.amount / rate
+  if (usdAmount < 3 * 0.9) throw Object.assign(new Error('That payment is short of the $3 Premium price.'), { status: 402 })
+
+  const ref = db.collection('users').doc(email)
+  const snap = await ref.get()
+  const current = snap.data()?.premiumUntil
+  const base = current && new Date(current) > new Date() ? new Date(current) : new Date()
+  const premiumUntil = new Date(base.getTime() + PREMIUM_MONTH_MS).toISOString()
+
+  await ref.set({ premiumUntil }, { merge: true })
+  // Mirrored onto the public profile too — it's just a subscription
+  // expiry timestamp, not sensitive — so PublicProfile.jsx can show a
+  // premium badge to other visitors without needing to read users/{email},
+  // which firestore.rules restricts to the account owner only.
+  await db.collection('public_profiles').doc(email).set({ premiumUntil }, { merge: true })
+  await guardRef.set({ email, provider, reference, premiumUntil, at: new Date().toISOString() })
+  return { premiumUntil }
+}
+
 async function refundWallet(email, { amount, currency, note }) {
   await assertNoActiveCooldown(email)
   const amt = Number(amount)
@@ -329,7 +367,7 @@ async function markChatRead(email) {
 
 const ACTIONS = {
   createDeal, acceptDeal, releaseDeal, depositWallet, refundWallet, requestPayout, renameUsername,
-  sendChatMessage, chatTyping, markChatRead, acknowledgeWarning, completeCooldown,
+  sendChatMessage, chatTyping, markChatRead, acknowledgeWarning, completeCooldown, upgradePremium,
 }
 
 export default async function handler(req, res) {

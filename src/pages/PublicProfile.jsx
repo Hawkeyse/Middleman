@@ -5,6 +5,7 @@ import Icon from '../components/Icon.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getPublicProfile } from '../state/users.js'
 import { calcTrustScore } from '../utils/trustScore.js'
+import { isPremiumActive } from '../state/premium.js'
 import './PublicProfile.css'
 
 function PublicProfile() {
@@ -53,6 +54,7 @@ function PublicProfile() {
         <div className="pubprofile-handle">
           @{profile.username}
           {profile.verified && <Icon name="verify" size={15} />}
+          {isPremiumActive(profile.premiumUntil) && <span className="pubprofile-premium">★ PREMIUM</span>}
         </div>
         {wasRenamed && <p className="pubprofile-note">You looked up @{profile.viewedAs} — this account goes by @{profile.username} now.</p>}
 

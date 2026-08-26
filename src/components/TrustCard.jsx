@@ -18,9 +18,13 @@ function roundRect(ctx, x, y, w, h, r) {
 // Hand-drawn on canvas rather than pulled in via an html-to-image library —
 // the card is simple enough, and this avoids a new dependency just to let
 // someone download a PNG of their own stats.
-function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince }) {
+function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, cardStyle }) {
   const canvasRef = useRef(null)
   const [ready, setReady] = useState(false)
+  const accentFont = cardStyle?.fontFamily || "'Space Grotesk', sans-serif"
+  const bg = cardStyle?.bg || ['#172b67', '#0a1638']
+  const bgStart = bg[0]
+  const bgEnd = bg[1]
 
   useEffect(() => {
     let cancelled = false
@@ -37,8 +41,8 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
       const ctx = canvas.getContext('2d')
 
       const grad = ctx.createLinearGradient(0, 0, W, H)
-      grad.addColorStop(0, '#172b67')
-      grad.addColorStop(1, '#0a1638')
+      grad.addColorStop(0, bgStart)
+      grad.addColorStop(1, bgEnd)
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, W, H)
 
@@ -56,7 +60,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
       ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip()
       ctx.globalAlpha = 0.05
       ctx.fillStyle = '#ffffff'
-      ctx.font = "700 34px 'Space Grotesk', sans-serif"
+      ctx.font = `700 34px ${accentFont}`
       ctx.textBaseline = 'alphabetic'
       ctx.translate(W / 2, H / 2)
       ctx.rotate(-18 * Math.PI / 180)
@@ -84,11 +88,24 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
       }
       ctx.fillStyle = '#ffffff'
       ctx.textBaseline = 'middle'
-      ctx.font = "700 30px 'Space Grotesk', sans-serif"
+      ctx.font = `700 30px ${accentFont}`
       ctx.fillText('middleman', 72 + 68, 64 + 28)
 
+      let badgeRightEdge = W - 72
+      if (premium) {
+        const bw = 172, bh = 42, bx = badgeRightEdge - bw, by = 58
+        ctx.fillStyle = 'rgba(255,214,102,0.2)'
+        roundRect(ctx, bx, by, bw, bh, 21)
+        ctx.fill()
+        ctx.fillStyle = '#FFD666'
+        ctx.font = "700 16px 'Space Grotesk', sans-serif"
+        ctx.textAlign = 'center'
+        ctx.fillText('★ PREMIUM', bx + bw / 2, by + bh / 2 + 1)
+        ctx.textAlign = 'left'
+        badgeRightEdge = bx - 12
+      }
       if (verified) {
-        const bw = 168, bh = 42, bx = W - 72 - bw, by = 58
+        const bw = 168, bh = 42, bx = badgeRightEdge - bw, by = 58
         ctx.fillStyle = 'rgba(97,220,170,0.16)'
         roundRect(ctx, bx, by, bw, bh, 21)
         ctx.fill()
@@ -117,7 +134,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
         ctx.arc(avatarCx, avatarCy, 48, 0, Math.PI * 2)
         ctx.fill()
         ctx.fillStyle = '#ffffff'
-        ctx.font = "700 44px 'Space Grotesk', sans-serif"
+        ctx.font = `700 44px ${accentFont}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText((name || 'M')[0].toUpperCase(), avatarCx, avatarCy + 3)
@@ -127,7 +144,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
 
       const nameX = 72 + 116
       ctx.fillStyle = '#ffffff'
-      ctx.font = "700 60px 'Space Grotesk', sans-serif"
+      ctx.font = `700 60px ${accentFont}`
       ctx.fillText(name || 'Middleman member', nameX, 244)
 
       ctx.fillStyle = '#a9b8ec'
@@ -154,7 +171,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
       stats.forEach((s, i) => {
         const x = 72 + i * statW
         ctx.fillStyle = '#ffffff'
-        ctx.font = "700 56px 'Space Grotesk', sans-serif"
+        ctx.font = `700 56px ${accentFont}`
         ctx.fillText(s.value, x, 462)
         ctx.fillStyle = '#8fa3e0'
         ctx.font = "700 13px 'Space Grotesk', sans-serif"
@@ -190,7 +207,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
     else start()
 
     return () => { cancelled = true }
-  }, [name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince])
+  }, [name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, accentFont, bgStart, bgEnd])
 
   const download = () => {
     const canvas = canvasRef.current
