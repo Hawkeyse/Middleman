@@ -4,8 +4,14 @@ import { sendMail, emailTemplates } from './_lib/mailer.js'
 // Firebase's own template system can't be edited past sender/reply-to, so
 // verify-email and password-reset are sent from here instead: generate the
 // real Firebase action link server-side (admin SDK) and mail our own
-// branded HTML via Resend. handleCodeInApp routes the link back into the
-// app's own /auth/action page instead of Firebase's generic hosted handler.
+// branded HTML via Resend.
+//
+// The admin SDK always routes its generated link through Firebase's own
+// hosted page (<project>.firebaseapp.com/__/auth/action) first, no matter
+// what actionCodeSettings says — handleCodeInApp only affects links made by
+// the client SDK. So we pull `mode`/`oobCode` back out of Firebase's link
+// and build our own URL straight to /auth/action, which knows how to finish
+// the verify/reset itself — the user never sees Firebase's page at all.
 const ALLOWED_ORIGINS = ['https://middlemansecure.com', 'https://www.middlemansecure.com', 'http://localhost:5173']
 
 function safeOrigin(origin) {
@@ -15,17 +21,26 @@ function safeOrigin(origin) {
   return 'https://middlemansecure.com'
 }
 
+function toDirectActionLink(firebaseLink, appOrigin) {
+  const { searchParams } = new URL(firebaseLink)
+  const mode = searchParams.get('mode')
+  const oobCode = searchParams.get('oobCode')
+  return `${appOrigin}/auth/action?mode=${encodeURIComponent(mode)}&oobCode=${encodeURIComponent(oobCode)}`
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { type, origin } = req.body || {}
-  const actionCodeSettings = { url: `${safeOrigin(origin)}/auth/action`, handleCodeInApp: true }
+  const appOrigin = safeOrigin(origin)
+  const actionCodeSettings = { url: `${appOrigin}/auth/action`, handleCodeInApp: true }
 
   try {
     if (type === 'reset') {
       const { email } = req.body || {}
       if (!email) return res.status(400).json({ error: 'email is required' })
       try {
-        const link = await adminAuth.generatePasswordResetLink(email, actionCodeSettings)
+        const rawLink = await adminAuth.generatePasswordResetLink(email, actionCodeSettings)
+        const link = toDirectActionLink(rawLink, appOrigin)
         const { subject, html } = emailTemplates.resetPassword({ link, email })
         await sendMail({ to: email, subject, html })
       } catch (err) {
@@ -46,7 +61,8 @@ export default async function handler(req, res) {
       if (!idToken) return res.status(401).json({ error: 'Not signed in' })
       const decoded = await adminAuth.verifyIdToken(idToken)
       if (!decoded.email) return res.status(401).json({ error: 'Account has no email' })
-      const link = await adminAuth.generateEmailVerificationLink(decoded.email, actionCodeSettings)
+      const rawLink = await adminAuth.generateEmailVerificationLink(decoded.email, actionCodeSettings)
+      const link = toDirectActionLink(rawLink, appOrigin)
       const { subject, html } = emailTemplates.verifyEmail({ link, displayName: decoded.name || '' })
       await sendMail({ to: decoded.email, subject, html })
       return res.status(200).json({ ok: true })
