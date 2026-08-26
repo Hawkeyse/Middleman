@@ -1,17 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { requireTeam } from './_lib/requireTeam.js'
 import { db } from './_lib/firebaseAdmin.js'
-import { sendMail, emailTemplates } from './_lib/mailer.js'
-
-// Best-effort — a moderation action (warn/ban/verification decision) must
-// still succeed even if Resend is down or the address bounces.
-async function notify(to, template) {
-  try {
-    await sendMail({ to, ...template })
-  } catch (err) {
-    console.error('team notification email failed', err)
-  }
-}
+import { emailTemplates, notify } from './_lib/mailer.js'
 
 // Every team-privileged route in one function, dispatched by ?resource=,
 // instead of one file per resource — Vercel's Hobby plan caps a deployment
@@ -65,6 +55,7 @@ async function handleUsers(req, res) {
       await notify(email, emailTemplates.ban({ reason }))
     } else if (action === 'unban') {
       await ref.set({ status: 'active', banReason: null, bannedAt: null }, { merge: true })
+      await notify(email, emailTemplates.unbanned())
     } else {
       return res.status(400).json({ error: 'Unknown action' })
     }
@@ -168,6 +159,8 @@ async function handleRefunds(req, res) {
     if (!snap.exists) return res.status(404).json({ error: 'Request not found' })
     const completedAt = new Date().toISOString()
     await ref.set({ status: 'completed', completedAt }, { merge: true })
+    const { email, amount, currency } = snap.data()
+    await notify(email, emailTemplates.refundSent({ amount, currency }))
     return res.status(200).json({ request: { id, ...snap.data(), status: 'completed', completedAt } })
   }
 

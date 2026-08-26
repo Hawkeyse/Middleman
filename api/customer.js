@@ -6,6 +6,7 @@ import { flutterwaveFetch } from './_lib/flutterwave.js'
 import { usdRate } from './_lib/fx.js'
 import { normalizeUsername, usernameError } from '../src/utils/usernameRules.js'
 import { calcFeeUSD } from '../src/utils/fees.js'
+import { emailTemplates, notify } from './_lib/mailer.js'
 
 // Every signed-in-user (requireUser) action that has to be server-side —
 // money moves, or a rate-limited/history field firestore.rules blocks a
@@ -162,6 +163,7 @@ async function depositWallet(email, { provider, reference }) {
 
   const entry = { email, type: 'deposit', amount: verified.amount, currency: verified.currency, dealCode: null, note: '', at: new Date().toISOString() }
   await entryRef.set(entry)
+  await notify(email, emailTemplates.deposit({ amount: verified.amount, currency: verified.currency }))
   return { entry: { id: entryRef.id, ...entry } }
 }
 

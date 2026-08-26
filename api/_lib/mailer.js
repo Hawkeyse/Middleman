@@ -116,6 +116,55 @@ export const emailTemplates = {
       }),
     }
   },
+  deposit({ amount, currency }) {
+    return {
+      subject: 'Deposit confirmed on Middleman',
+      html: shell({
+        heading: 'Deposit confirmed',
+        bodyHtml: `We've added <b>${escapeHtml(currency)} ${Number(amount).toFixed(2)}</b> to your Middleman wallet. It's ready to use on your next deal.`,
+        ctaText: 'Go to your wallet',
+        ctaLink: 'https://middlemansecure.com/dashboard',
+        footerNote: 'Keep an eye on your dashboard for updates on your deals.',
+        showRawLink: false,
+      }),
+    }
+  },
+  refundSent({ amount, currency }) {
+    return {
+      subject: 'Your refund has been sent',
+      html: shell({
+        heading: 'Refund sent',
+        bodyHtml: `Your refund of <b>${escapeHtml(currency)} ${Number(amount).toFixed(2)}</b> has been sent. It should reflect shortly depending on your payment provider.`,
+        ctaText: 'View your wallet',
+        ctaLink: 'https://middlemansecure.com/dashboard',
+        footerNote: "If it doesn't show up after a while, reach out through Support in the app.",
+        showRawLink: false,
+      }),
+    }
+  },
+  unbanned() {
+    return {
+      subject: 'Your Middleman account has been restored',
+      html: shell({
+        heading: 'Account restored',
+        bodyHtml: "Good news — your Middleman account is no longer restricted. You can log back in and pick up right where you left off.",
+        ctaText: 'Log back in',
+        ctaLink: 'https://middlemansecure.com/login',
+        footerNote: 'Please keep following our Terms of Service to avoid further action on your account.',
+        showRawLink: false,
+      }),
+    }
+  },
+}
+
+// Best-effort — a moderation action or money movement must still succeed
+// even if Resend is down or a particular address bounces.
+export async function notify(to, template) {
+  try {
+    await sendMail({ to, ...template })
+  } catch (err) {
+    console.error('notification email failed', err)
+  }
 }
 
 export async function sendMail({ to, subject, html }) {
