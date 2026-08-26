@@ -1,6 +1,17 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { requireTeam } from './_lib/requireTeam.js'
 import { db } from './_lib/firebaseAdmin.js'
+import { sendMail, emailTemplates } from './_lib/mailer.js'
+
+// Best-effort — a moderation action (warn/ban/verification decision) must
+// still succeed even if Resend is down or the address bounces.
+async function notify(to, template) {
+  try {
+    await sendMail({ to, ...template })
+  } catch (err) {
+    console.error('team notification email failed', err)
+  }
+}
 
 // Every team-privileged route in one function, dispatched by ?resource=,
 // instead of one file per resource — Vercel's Hobby plan caps a deployment
@@ -48,8 +59,10 @@ async function handleUsers(req, res) {
       const warningEntry = { reason: reason || 'No reason given.', at, cooldownUntil }
       const warnings = [...(snap.data().warnings || []), warningEntry]
       await ref.set({ status: 'warned', warnings, activeWarning: { ...warningEntry, acknowledged: false } }, { merge: true })
+      await notify(email, emailTemplates.warning({ reason, cooldownUntil }))
     } else if (action === 'ban') {
       await ref.set({ status: 'banned', banReason: reason || 'Violated Middleman terms.', bannedAt: new Date().toISOString() }, { merge: true })
+      await notify(email, emailTemplates.ban({ reason }))
     } else if (action === 'unban') {
       await ref.set({ status: 'active', banReason: null, bannedAt: null }, { merge: true })
     } else {
@@ -82,6 +95,7 @@ async function handleVerifications(req, res) {
     // the verified flag onto their public profile so it can show a badge
     // without exposing the verification doc itself (docImage/selfieImage).
     await db.collection('public_profiles').doc(id).set({ verified: status === 'verified' }, { merge: true })
+    await notify(id, status === 'verified' ? emailTemplates.verificationApproved() : emailTemplates.verificationDeclined({ reason }))
     return res.status(200).json({ record: { ...snap.data(), status, reason: reason || null, decidedAt } })
   }
 

@@ -9,7 +9,11 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }
 
-function shell({ heading, bodyHtml, ctaText, ctaLink, footerNote }) {
+// showRawLink is on for action-code links (verify/reset), where the raw
+// URL is a useful fallback if the button doesn't render — off for plain
+// notification emails (warning/ban/verification decision) where the CTA
+// just points at a normal in-app page.
+function shell({ heading, bodyHtml, ctaText, ctaLink, footerNote, showRawLink = true }) {
   return `
 <div style="background:#f5f7fb;padding:40px 16px;font-family:'DM Sans',Arial,sans-serif;">
   <table role="presentation" width="100%" style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e8ecf4;overflow:hidden;">
@@ -22,7 +26,7 @@ function shell({ heading, bodyHtml, ctaText, ctaLink, footerNote }) {
       <div style="text-align:center;margin:26px 0 10px;">
         <a href="${ctaLink}" style="background:#2754ea;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 30px;border-radius:10px;display:inline-block;">${ctaText}</a>
       </div>
-      <p style="color:#9ca7ba;font-size:11.5px;line-height:1.6;word-break:break-all;">Or paste this link into your browser:<br /><a href="${ctaLink}" style="color:#2754ea;">${ctaLink}</a></p>
+      ${showRawLink ? `<p style="color:#9ca7ba;font-size:11.5px;line-height:1.6;word-break:break-all;">Or paste this link into your browser:<br /><a href="${ctaLink}" style="color:#2754ea;">${ctaLink}</a></p>` : ''}
     </td></tr>
     <tr><td style="padding:20px 40px 30px;border-top:1px solid #e8ecf4;">
       <p style="margin:0;color:#9ca7ba;font-size:12px;line-height:1.6;">${footerNote}</p>
@@ -35,10 +39,11 @@ function shell({ heading, bodyHtml, ctaText, ctaLink, footerNote }) {
 export const emailTemplates = {
   verifyEmail({ link, displayName }) {
     return {
-      subject: 'Verify your email for Middleman',
+      subject: 'Welcome to Middleman — verify your email',
       html: shell({
-        heading: 'Verify your email',
-        bodyHtml: `Hey ${escapeHtml(displayName || 'there')}, click below to verify your email address and finish setting up your Middleman account.`,
+        heading: `Welcome to Middleman, ${escapeHtml(displayName || 'there')}!`,
+        bodyHtml: `Middleman holds the money for a deal until the buyer confirms they actually got what they paid for — so nobody has to just trust a stranger. Click below to verify your email and activate your account.`
+          + `<br /><br />One more thing: before you can deposit, create or accept a deal, or request a refund, you'll also need to complete identity verification in the app (a quick ID + selfie check) — that's what keeps every deal on Middleman accountable.`,
         ctaText: 'Verify email',
         ctaLink: link,
         footerNote: "If you didn't create a Middleman account, you can safely ignore this email.",
@@ -54,6 +59,60 @@ export const emailTemplates = {
         ctaText: 'Reset password',
         ctaLink: link,
         footerNote: "If you didn't request this, you can safely ignore this email — your password won't change.",
+      }),
+    }
+  },
+  warning({ reason, cooldownUntil }) {
+    const restricted = cooldownUntil && new Date(cooldownUntil).getTime() > Date.now()
+    return {
+      subject: "You've received a warning on Middleman",
+      html: shell({
+        heading: 'Account warning',
+        bodyHtml: `Your Middleman account has received a warning.<br /><br /><b>Reason:</b> ${escapeHtml(reason || 'No reason given.')}`
+          + (restricted ? `<br /><br />Your account is restricted until <b>${escapeHtml(new Date(cooldownUntil).toLocaleString())}</b> — money and identity actions are paused until then.` : ''),
+        ctaText: 'Go to your account',
+        ctaLink: 'https://middlemansecure.com/dashboard',
+        footerNote: 'Repeated or serious violations can lead to a permanent ban. If you believe this was a mistake, reach out through Support in the app.',
+        showRawLink: false,
+      }),
+    }
+  },
+  ban({ reason }) {
+    return {
+      subject: 'Your Middleman account has been suspended',
+      html: shell({
+        heading: 'Account suspended',
+        bodyHtml: `Your Middleman account has been suspended and you no longer have access to the platform.<br /><br /><b>Reason:</b> ${escapeHtml(reason || 'Violated Middleman terms.')}`,
+        ctaText: 'Read our Terms',
+        ctaLink: 'https://middlemansecure.com/terms',
+        footerNote: 'If you believe this was a mistake, contact details are available on our FAQ page.',
+        showRawLink: false,
+      }),
+    }
+  },
+  verificationApproved() {
+    return {
+      subject: "You're verified on Middleman!",
+      html: shell({
+        heading: 'Identity verified',
+        bodyHtml: 'Good news — your identity verification was approved. You can now create and accept deals on Middleman.',
+        ctaText: 'Go to your dashboard',
+        ctaLink: 'https://middlemansecure.com/dashboard',
+        footerNote: 'Thanks for helping keep Middleman a safe place to deal.',
+        showRawLink: false,
+      }),
+    }
+  },
+  verificationDeclined({ reason }) {
+    return {
+      subject: 'Your Middleman verification needs another look',
+      html: shell({
+        heading: 'Verification declined',
+        bodyHtml: `Your identity verification wasn't approved this time.<br /><br /><b>Reason:</b> ${escapeHtml(reason || 'Submitted documents did not meet our requirements.')}<br /><br />You can submit again with clearer documents from your account.`,
+        ctaText: 'Try again',
+        ctaLink: 'https://middlemansecure.com/verify',
+        footerNote: "If you're not sure what went wrong, reach out through Support in the app.",
+        showRawLink: false,
       }),
     }
   },
