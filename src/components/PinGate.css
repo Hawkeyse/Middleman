@@ -1,0 +1,26 @@
+.pin-gate-backdrop{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:#0d1530cc;backdrop-filter:blur(10px);animation:pinFadeIn .22s ease}
+.pin-gate-card{width:min(100%,380px);padding:36px 32px 32px;border-radius:20px;background:#fff;box-shadow:0 30px 70px #0d15304d;text-align:center;animation:pinCardIn .28s cubic-bezier(.2,.9,.3,1.2)}
+.pin-gate-mark{width:52px;height:52px;margin:0 auto 18px;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px #2754ea33}
+.pin-gate-mark img{width:100%;height:100%;object-fit:cover}
+.pin-gate-card h2{margin:0 0 8px;color:var(--ink);font:700 20px 'Space Grotesk',sans-serif;letter-spacing:-.3px}
+.pin-gate-card p{margin:0 0 22px;color:var(--muted);font-size:13.5px;line-height:1.6}
+.pin-gate-card p b{color:var(--ink)}
+
+.pin-gate-error{margin:-8px 0 16px;padding:9px 14px;border-radius:10px;background:#fdeceb;color:#a34335;font-size:12.5px;font-weight:600}
+
+.pin-input-wrap{position:relative;display:inline-block;cursor:text}
+.pin-boxes{display:flex;gap:10px;justify-content:center}
+.pin-boxes.shake{animation:pinShake .4s}
+.pin-box{width:46px;height:56px;display:grid;place-items:center;border-radius:12px;border:1.5px solid var(--line);background:#fbfcff;font:700 22px 'Space Grotesk',sans-serif;color:var(--ink);transition:border-color .15s ease}
+.pin-box.filled{border-color:var(--blue);animation:pinPop .16s ease}
+.pin-hidden-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;padding:0;font-size:16px}
+
+.pin-skip{margin-top:20px;background:none;border:none;color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer}
+.pin-skip:hover{color:var(--blue)}
+.pin-forgot{margin-top:20px;background:none;border:none;color:#9ca7ba;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline}
+.pin-forgot.loud{margin-top:6px;color:var(--blue);font-size:13.5px}
+
+@keyframes pinFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pinCardIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes pinPop{0%{transform:scale(.75)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes pinShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}

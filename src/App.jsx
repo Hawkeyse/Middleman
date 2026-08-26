@@ -4,6 +4,7 @@ import { AppStateProvider, useAppState } from './state/AppState.jsx'
 import LoadingScreen from './components/LoadingScreen.jsx'
 import BannedScreen from './components/BannedScreen.jsx'
 import WarningGate from './components/WarningGate.jsx'
+import PinGate from './components/PinGate.jsx'
 
 const Welcome = lazy(() => import('./pages/Welcome.jsx'))
 const Signup = lazy(() => import('./pages/Signup.jsx'))
@@ -24,7 +25,7 @@ function RequireAuth({ children }) {
   if (!authChecked) return null
   if (!authed) return <Navigate to="/login" replace />
   if (banned) return <BannedScreen />
-  return <WarningGate>{children}</WarningGate>
+  return <PinGate><WarningGate>{children}</WarningGate></PinGate>
 }
 
 function AppRoutes() {
