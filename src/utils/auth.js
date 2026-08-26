@@ -2,14 +2,16 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  sendEmailVerification,
-  sendPasswordResetEmail,
   updateProfile,
   onAuthStateChanged,
   RecaptchaVerifier,
   linkWithPhoneNumber,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  applyActionCode,
 } from 'firebase/auth'
 import { auth } from '../lib/firebase.js'
+import { authedFetch } from './authedFetch.js'
 
 // Firebase mutates its User object in place (e.g. on reload()), so plain
 // object identity never changes and React won't know to re-render. Every
@@ -18,8 +20,6 @@ function toSnapshot(fu) {
   return fu ? { uid: fu.uid, email: fu.email, emailVerified: fu.emailVerified, displayName: fu.displayName } : null
 }
 
-const continueUrl = () => ({ url: `${window.location.origin}/login` })
-
 export function watchAuth(callback) {
   return onAuthStateChanged(auth, (fu) => callback(toSnapshot(fu)))
 }
@@ -27,7 +27,7 @@ export function watchAuth(callback) {
 export async function signUp(name, email, password) {
   const { user } = await createUserWithEmailAndPassword(auth, email, password)
   if (name) await updateProfile(user, { displayName: name })
-  await sendEmailVerification(user, continueUrl())
+  await authedFetch('/api/auth-email', { body: { type: 'verify', origin: window.location.origin } })
   return toSnapshot(user)
 }
 
@@ -37,7 +37,7 @@ export async function signIn(email, password) {
 }
 
 export async function resendVerification() {
-  if (auth.currentUser) await sendEmailVerification(auth.currentUser, continueUrl())
+  if (auth.currentUser) await authedFetch('/api/auth-email', { body: { type: 'verify', origin: window.location.origin } })
 }
 
 // Re-pulls the current user's state from Firebase (does NOT retrigger
@@ -50,12 +50,30 @@ export async function checkVerified() {
 }
 
 export async function requestPasswordReset(email) {
-  try {
-    await sendPasswordResetEmail(auth, email, continueUrl())
-  } catch (err) {
-    // Don't leak whether the email has an account.
-    if (err.code !== 'auth/user-not-found') throw err
+  const res = await fetch('/api/auth-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'reset', email, origin: window.location.origin }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || 'Request failed')
   }
+}
+
+// Used by /auth/action, the in-app page the branded emails link to instead
+// of Firebase's own generic hosted handler.
+export async function verifyResetCode(oobCode) {
+  return verifyPasswordResetCode(auth, oobCode) // resolves to the account's email
+}
+
+export async function confirmReset(oobCode, newPassword) {
+  await confirmPasswordReset(auth, oobCode, newPassword)
+}
+
+export async function verifyEmailCode(oobCode) {
+  await applyActionCode(auth, oobCode)
+  if (auth.currentUser) await auth.currentUser.reload()
 }
 
 export async function signOutUser() {
@@ -105,6 +123,9 @@ const ERROR_MESSAGES = {
   'auth/operation-not-allowed': "Phone sign-in isn't turned on for this project yet.",
   'auth/captcha-check-failed': "Verification check failed — refresh the page and try again.",
   'auth/quota-exceeded': "We've hit today's SMS limit. Please try again later.",
+  'auth/expired-action-code': 'This link has expired. Request a new one.',
+  'auth/invalid-action-code': 'This link is invalid or has already been used.',
+  'auth/user-disabled': 'This account has been disabled.',
 }
 
 export function authErrorMessage(err) {

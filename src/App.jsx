@@ -9,6 +9,7 @@ const Welcome = lazy(() => import('./pages/Welcome.jsx'))
 const Signup = lazy(() => import('./pages/Signup.jsx'))
 const Login = lazy(() => import('./pages/Login.jsx'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'))
+const AuthAction = lazy(() => import('./pages/AuthAction.jsx'))
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Profile = lazy(() => import('./pages/Profile.jsx'))
 const Verify = lazy(() => import('./pages/Verify.jsx'))
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/action" element={<AuthAction />} />
         <Route path="/invite/:code" element={<Invite />} />
         <Route path="/u/:username" element={<PublicProfile />} />
         <Route path="/team" element={<Team />} />
