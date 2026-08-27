@@ -54,7 +54,9 @@ function PublicProfile() {
         <div className="pubprofile-handle">
           @{profile.username}
           {profile.verified && <Icon name="verify" size={15} />}
-          {isPremiumActive(profile.premiumUntil) && <span className="pubprofile-premium">★ PREMIUM</span>}
+          {profile.isOwner ? (
+            <span className="pubprofile-owner">🔥 OWNER</span>
+          ) : isPremiumActive(profile.premiumUntil) && <span className="pubprofile-premium">★ PREMIUM</span>}
         </div>
         {wasRenamed && <p className="pubprofile-note">You looked up @{profile.viewedAs} — this account goes by @{profile.username} now.</p>}
 

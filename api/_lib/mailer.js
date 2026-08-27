@@ -155,6 +155,19 @@ export const emailTemplates = {
       }),
     }
   },
+  teamInvite({ email, password }) {
+    return {
+      subject: "You've been added to the Middleman team",
+      html: shell({
+        heading: 'Welcome to the team',
+        bodyHtml: `You've been added as a Middleman team member.<br /><br /><b>Email:</b> ${escapeHtml(email)}<br /><b>Temporary password:</b> ${escapeHtml(password)}<br /><br />Log in with these, then change your password from your profile once you're in.`,
+        ctaText: 'Log in to the team dashboard',
+        ctaLink: 'https://middlemansecure.com/team',
+        footerNote: "Keep this password private — it works the same as any other Middleman login.",
+        showRawLink: false,
+      }),
+    }
+  },
   unbanned() {
     return {
       subject: 'Your Middleman account has been restored',

@@ -1,3 +1,5 @@
+import { auth } from '../lib/firebase.js'
+
 async function parseJson(res) {
   const text = await res.text()
   try {
@@ -7,14 +9,15 @@ async function parseJson(res) {
   }
 }
 
-// Every team resource re-checks this passcode server-side (api/team.js, via
-// api/_lib/requireTeam.js) — sessionStorage just remembers what was typed at
-// the gate so it doesn't have to be re-entered on every action.
+// Team access is now a real per-person Firebase account (team_members
+// collection, checked server-side in api/_lib/requireTeam.js) instead of a
+// shared passcode header — same idea as authedFetch.js, just for /api/team.
 export async function teamFetch(path, { method = 'GET', body } = {}) {
-  const code = sessionStorage.getItem('mm_team_code') || ''
+  if (!auth.currentUser) throw new Error('Not signed in.')
+  const idToken = await auth.currentUser.getIdToken()
   const res = await fetch(path, {
     method,
-    headers: { 'Content-Type': 'application/json', 'x-team-passcode': code },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
     body: body ? JSON.stringify(body) : undefined,
   })
   const data = await parseJson(res)

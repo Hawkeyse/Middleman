@@ -39,6 +39,14 @@ export async function signIn(email, password) {
   return toSnapshot(user)
 }
 
+// Team login (Team.jsx) uses the same Firebase Auth pool as customers —
+// this just signs in without the customer-app's emailVerified gating.
+// Whether the account is actually on the team is checked separately,
+// server-side, right after (see api/_lib/requireTeam.js).
+export async function teamSignIn(email, password) {
+  await signInWithEmailAndPassword(auth, email, password)
+}
+
 export async function resendVerification() {
   if (auth.currentUser) await authedFetch('/api/auth-email', { body: { type: 'verify', origin: window.location.origin } })
 }

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowDownLeft, ArrowLeft, ArrowUpRight, BadgeCheck, Check, Flag, Headset, IdCard,
-  LayoutDashboard, Lock, Receipt, Users as UsersIcon, ZoomIn,
+  LayoutDashboard, Lock, Receipt, Shield, Trash2, Users as UsersIcon, ZoomIn,
 } from 'lucide-react'
 import Icon from '../components/Icon.jsx'
 import { typingFrom } from '../state/chat.js'
 import { teamFetch } from '../utils/teamFetch.js'
+import { teamSignIn, authErrorMessage, signOutUser } from '../utils/auth.js'
+import { auth } from '../lib/firebase.js'
 import { requestNotifyPermission } from '../utils/notify.js'
 import { useChatNotify } from '../hooks/useChatNotify.js'
 import { money, symbolFor } from '../utils/currencies.js'
@@ -18,29 +20,39 @@ const filters = ['pending', 'verified', 'declined', 'all']
 
 function TeamGate({ onUnlock }) {
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
 
-  // Verified server-side (api/team.js's login resource) against TEAM_PASSCODE — the old
-  // version compared against a passcode sitting in plaintext in the shipped
-  // JS bundle, readable by anyone via view-source.
+  // Real per-person Firebase account instead of a shared passcode — the
+  // passcode version compared against a secret sitting in plaintext in the
+  // shipped JS bundle (readable by anyone via view-source) and gave whoever
+  // had it identical access to everyone else. Signing into Firebase only
+  // proves the credentials are right; team_members membership (checked
+  // server-side) is what actually decides they belong on the dashboard, so
+  // a valid Middleman login that isn't on the team gets signed back out
+  // rather than left half-authenticated on this page.
   const submit = async (e) => {
     e.preventDefault()
     setError('')
     setChecking(true)
     try {
-      const res = await fetch('/api/team?resource=login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-team-passcode': code },
-      })
-      if (!res.ok) throw new Error()
+      await teamSignIn(email, password)
+    } catch (err) {
+      setError(authErrorMessage(err))
+      setChecking(false)
+      return
+    }
+    try {
+      const { role } = await teamFetch('/api/team?resource=login')
       sessionStorage.setItem('mm_team_unlocked', 'true')
       sessionStorage.setItem('mm_team_agent_name', name.trim() || 'Middleman Team')
-      sessionStorage.setItem('mm_team_code', code)
+      sessionStorage.setItem('mm_team_role', role)
       onUnlock()
     } catch {
-      setError('Wrong passcode.')
+      setError("This account isn't on the Middleman team.")
+      await signOutUser().catch(() => {})
     } finally {
       setChecking(false)
     }
@@ -51,12 +63,13 @@ function TeamGate({ onUnlock }) {
       <div className="team-gate-card">
         <div className="team-gate-icon"><Lock size={22} /></div>
         <h2>Middleman Team</h2>
-        <p>Staff only. Enter your name and the team passcode to review verifications, users and support chats.</p>
+        <p>Staff only. Log in with your team account to review verifications, users and support chats.</p>
         {error && <div className="team-error">{error}</div>}
         <form onSubmit={submit}>
           <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your first name (shown to customers)" />
-          <input type="password" value={code} onChange={(e) => { setCode(e.target.value); setError('') }} placeholder="Team passcode" />
-          <button type="submit" disabled={checking}>{checking ? 'Checking…' : 'Unlock'}</button>
+          <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError('') }} placeholder="Team email" />
+          <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError('') }} placeholder="Password" />
+          <button type="submit" disabled={checking}>{checking ? 'Checking…' : 'Log in'}</button>
         </form>
         <Link className="team-gate-back" to="/">Back to Middleman</Link>
       </div>
@@ -65,8 +78,9 @@ function TeamGate({ onUnlock }) {
 }
 
 function Team() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('mm_team_unlocked') === 'true')
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('mm_team_unlocked') === 'true' && !!auth.currentUser)
   const agentName = sessionStorage.getItem('mm_team_agent_name') || 'Middleman Team'
+  const myRole = sessionStorage.getItem('mm_team_role') || 'member'
   const [section, setSection] = useState('overview')
   const unreadTotal = useChatNotify({ role: 'team', title: 'Middleman Support', active: unlocked })
 
@@ -96,6 +110,11 @@ function Team() {
 
   const [analytics, setAnalytics] = useState({ totalVisits: 0, totalUsers: 0, totalDeals: 0 })
 
+  const [teamMembers, setTeamMembers] = useState([])
+  const [addMemberEmail, setAddMemberEmail] = useState('')
+  const [addMemberError, setAddMemberError] = useState('')
+  const [addingMember, setAddingMember] = useState(false)
+
   const refresh = () => {
     teamFetch('/api/team?resource=verifications').then((data) => setRecords(data.records)).catch(() => {})
     teamFetch('/api/team?resource=chat').then((data) => setThreads(data.threads)).catch(() => {})
@@ -105,7 +124,25 @@ function Team() {
     teamFetch('/api/team?resource=refunds').then((data) => setRefunds(data.requests)).catch(() => {})
     teamFetch('/api/team?resource=payouts').then((data) => setPayouts(data.requests)).catch(() => {})
     teamFetch('/api/team?resource=analytics').then(setAnalytics).catch(() => {})
+    if (myRole === 'owner') teamFetch('/api/team?resource=teamMembers').then((data) => setTeamMembers(data.members)).catch(() => {})
   }
+
+  const addTeamMember = async (e) => {
+    e.preventDefault()
+    setAddMemberError('')
+    if (!addMemberEmail.trim()) return
+    setAddingMember(true)
+    try {
+      await teamFetch('/api/team?resource=teamMembers', { method: 'POST', body: { action: 'add', email: addMemberEmail.trim() } })
+      setAddMemberEmail('')
+      refresh()
+    } catch (err) {
+      setAddMemberError(err.message || 'Could not add teammate.')
+    } finally {
+      setAddingMember(false)
+    }
+  }
+  const removeTeamMember = (email) => { teamFetch('/api/team?resource=teamMembers', { method: 'POST', body: { action: 'remove', email } }).then(refresh).catch(() => {}) }
   useEffect(() => { if (unlocked) { refresh(); requestNotifyPermission() } }, [unlocked])
   useEffect(() => {
     if (!unlocked) return
@@ -196,6 +233,7 @@ function Team() {
   const warn = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'warn', email, reason: actionDraft || 'No reason given.', duration: cooldownDraft } }).then(refresh).catch(() => {}); setActionDraft(''); setCooldownDraft('') }
   const ban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'ban', email, reason: actionDraft || 'Violated Middleman terms.' } }).then(refresh).catch(() => {}); setActionDraft('') }
   const unban = (email) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'unban', email } }).then(refresh).catch(() => {}) }
+  const setOwner = (email, owner) => { teamFetch('/api/team?resource=users', { method: 'POST', body: { action: 'setOwner', email, owner } }).then(refresh).catch(() => {}) }
 
   if (!unlocked) return <TeamGate onUnlock={() => setUnlocked(true)} />
 
@@ -212,6 +250,7 @@ function Team() {
           <button className={section === 'refunds' ? 'active' : ''} onClick={() => setSection('refunds')}><Icon name="refund" size={14} /> Withdrawals{pendingRefundCount > 0 && <i>{pendingRefundCount}</i>}</button>
           <button className={section === 'transactions' ? 'active' : ''} onClick={() => setSection('transactions')}><Receipt size={14} /> Transactions</button>
           <button className={section === 'support' ? 'active' : ''} onClick={() => setSection('support')}><Headset size={14} /> Support{unreadTotal > 0 && <i>{unreadTotal}</i>}</button>
+          {myRole === 'owner' && <button className={section === 'team' ? 'active' : ''} onClick={() => setSection('team')}><Shield size={14} /> Team</button>}
         </div>
       </header>
 
@@ -336,6 +375,11 @@ function Team() {
                   </div>
                 )}
                 {selectedUser.status === 'banned' && <button className="team-unban" onClick={() => unban(selectedUser.email)}>Lift ban</button>}
+                {myRole === 'owner' && (
+                  <button className="team-unban" onClick={() => setOwner(selectedUser.email, !selectedUser.isOwner)}>
+                    {selectedUser.isOwner ? 'Remove 🔥 Owner status' : 'Make 🔥 Owner'}
+                  </button>
+                )}
 
                 {selectedUser.warnings?.length > 0 && (
                   <div className="team-warnings">
@@ -487,6 +531,29 @@ function Team() {
                 />
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {section === 'team' && myRole === 'owner' && (
+        <div className="team-detail owner-team-panel">
+          <span className="section-label">TEAM MEMBERS</span>
+          <p>Add someone by their Gmail to give them their own team login — no shared passcode anymore. They get a temporary password by email and can change it from their profile once signed in.</p>
+
+          {addMemberError && <p className="invite-error"><Icon name="alarm" size={13} /> {addMemberError}</p>}
+          <form className="team-actions" onSubmit={addTeamMember}>
+            <input type="email" placeholder="teammate@gmail.com" value={addMemberEmail} onChange={(e) => setAddMemberEmail(e.target.value)} />
+            <button type="submit" className="team-warn" disabled={addingMember}>{addingMember ? 'Adding…' : 'Add to team'}</button>
+          </form>
+
+          <div className="owner-team-list">
+            {teamMembers.length === 0 && <div className="team-empty">No teammates yet.</div>}
+            {teamMembers.map((m) => (
+              <div key={m.email} className="owner-team-row">
+                <div><b>{m.email}</b><span>{m.role === 'owner' ? '🔥 Owner' : 'Team member'}{m.addedAt ? ` · added ${new Date(m.addedAt).toLocaleDateString()}` : ''}</span></div>
+                {m.role !== 'owner' && <button className="team-decline" onClick={() => removeTeamMember(m.email)}><Trash2 size={14} /> Remove</button>}
+              </div>
+            ))}
           </div>
         </div>
       )}

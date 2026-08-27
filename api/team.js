@@ -1,6 +1,7 @@
+import { randomBytes } from 'crypto'
 import { FieldValue } from 'firebase-admin/firestore'
-import { requireTeam } from './_lib/requireTeam.js'
-import { db } from './_lib/firebaseAdmin.js'
+import { requireTeam, requireOwner } from './_lib/requireTeam.js'
+import { db, adminAuth } from './_lib/firebaseAdmin.js'
 import { emailTemplates, notify } from './_lib/mailer.js'
 
 // Every team-privileged route in one function, dispatched by ?resource=,
@@ -10,9 +11,60 @@ import { emailTemplates, notify } from './_lib/mailer.js'
 // their webhook URLs externally), so anything new has to consolidate to
 // leave room. See src/utils/teamFetch.js for the client side.
 
+// Called once right after the client signs into Firebase on the team login
+// screen — requireTeam has already confirmed team_members membership by the
+// time this runs, so this just hands back who they are.
 async function handleLogin(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  res.status(200).json({ ok: true })
+  res.status(200).json({ email: req.team.email, role: req.team.role })
+}
+
+function generateTeamPassword() {
+  return randomBytes(9).toString('base64').replace(/[+/=]/g, '').slice(0, 12)
+}
+
+// Owner-only: add/remove who can log into /team at all. Adding creates (or,
+// if the email is already a Firebase Auth user — e.g. an existing customer
+// — resets) their password and emails it, rather than routing a real
+// password through the team dashboard's UI/network requests. Removing just
+// deletes the team_members doc — it revokes dashboard access immediately
+// without touching their actual Firebase account, since that might also be
+// their regular customer login.
+async function handleTeamMembers(req, res) {
+  requireOwner(req.team)
+
+  if (req.method === 'GET') {
+    const snap = await db.collection('team_members').get()
+    return res.status(200).json({ members: snap.docs.map((d) => d.data()) })
+  }
+
+  if (req.method === 'POST') {
+    const { action, email } = req.body || {}
+    if (!email) return res.status(400).json({ error: 'email is required' })
+
+    if (action === 'add') {
+      const password = generateTeamPassword()
+      try {
+        await adminAuth.createUser({ email, password })
+      } catch (err) {
+        if (err.code !== 'auth/email-already-exists') throw err
+        const existing = await adminAuth.getUserByEmail(email)
+        await adminAuth.updateUser(existing.uid, { password })
+      }
+      await db.collection('team_members').doc(email).set({ email, role: 'member', addedAt: new Date().toISOString(), addedBy: req.team.email })
+      await notify(email, emailTemplates.teamInvite({ email, password }))
+      return res.status(200).json({ ok: true })
+    }
+
+    if (action === 'remove') {
+      if (email === req.team.email) return res.status(400).json({ error: "You can't remove yourself." })
+      await db.collection('team_members').doc(email).delete()
+      return res.status(200).json({ ok: true })
+    }
+
+    return res.status(400).json({ error: 'Unknown action' })
+  }
+
+  res.status(405).json({ error: 'Method not allowed' })
 }
 
 // "5d", "12h", "30m" -> milliseconds. Cooldown is optional (see
@@ -35,7 +87,7 @@ async function handleUsers(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { action, email, reason, duration } = req.body || {}
+    const { action, email, reason, duration, owner } = req.body || {}
     if (!email) return res.status(400).json({ error: 'email is required' })
     const ref = db.collection('users').doc(email)
 
@@ -56,6 +108,15 @@ async function handleUsers(req, res) {
     } else if (action === 'unban') {
       await ref.set({ status: 'active', banReason: null, bannedAt: null }, { merge: true })
       await notify(email, emailTemplates.unbanned())
+    } else if (action === 'setOwner') {
+      // Not payment-gated like premiumUntil — this is purely a team-side
+      // toggle for marking the actual Middleman owner's own account.
+      // Mirrored onto public_profiles the same way premiumUntil is, so the
+      // 🔥 OWNER badge can render for other visitors without needing to
+      // read the private users/{email} doc.
+      const isOwner = !!owner
+      await ref.set({ isOwner }, { merge: true })
+      await db.collection('public_profiles').doc(email).set({ isOwner }, { merge: true })
     } else {
       return res.status(400).json({ error: 'Unknown action' })
     }
@@ -270,12 +331,12 @@ async function handleAnalytics(req, res) {
 const RESOURCES = {
   login: handleLogin, users: handleUsers, verifications: handleVerifications,
   deals: handleDeals, transactions: handleTransactions, refunds: handleRefunds, payouts: handlePayouts,
-  chat: handleChat, analytics: handleAnalytics,
+  chat: handleChat, analytics: handleAnalytics, teamMembers: handleTeamMembers,
 }
 
 export default async function handler(req, res) {
   try {
-    requireTeam(req)
+    req.team = await requireTeam(req)
     const fn = RESOURCES[req.query.resource]
     if (!fn) return res.status(400).json({ error: 'Unknown resource' })
     await fn(req, res)

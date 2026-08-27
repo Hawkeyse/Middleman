@@ -426,6 +426,7 @@ function Profile() {
               verified={verification === 'verified'}
               memberSince={memberSince}
               premium={premiumActive}
+              owner={!!accountStatus?.isOwner}
               cardStyle={premiumActive ? { bg: backgroundById(cardBg).colors, fontFamily: fontById(cardFont).family } : null}
             />
 

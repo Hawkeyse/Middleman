@@ -18,11 +18,13 @@ function roundRect(ctx, x, y, w, h, r) {
 // Hand-drawn on canvas rather than pulled in via an html-to-image library —
 // the card is simple enough, and this avoids a new dependency just to let
 // someone download a PNG of their own stats.
-function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, cardStyle }) {
+function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, cardStyle, owner }) {
   const canvasRef = useRef(null)
   const [ready, setReady] = useState(false)
-  const accentFont = cardStyle?.fontFamily || "'Space Grotesk', sans-serif"
-  const bg = cardStyle?.bg || ['#172b67', '#0a1638']
+  // Owner's fire theme is fixed, not user-configurable — it overrides
+  // whatever Premium design (if any) is otherwise set.
+  const accentFont = owner ? "'Bungee', cursive" : cardStyle?.fontFamily || "'Space Grotesk', sans-serif"
+  const bg = owner ? ['#ff7a18', '#7a0404'] : cardStyle?.bg || ['#172b67', '#0a1638']
   const bgStart = bg[0]
   const bgEnd = bg[1]
 
@@ -92,7 +94,18 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
       ctx.fillText('middleman', 72 + 68, 64 + 28)
 
       let badgeRightEdge = W - 72
-      if (premium) {
+      if (owner) {
+        const bw = 158, bh = 42, bx = badgeRightEdge - bw, by = 58
+        ctx.fillStyle = 'rgba(255,90,30,0.22)'
+        roundRect(ctx, bx, by, bw, bh, 21)
+        ctx.fill()
+        ctx.fillStyle = '#FF7A18'
+        ctx.font = "700 16px 'Space Grotesk', sans-serif"
+        ctx.textAlign = 'center'
+        ctx.fillText('🔥 OWNER', bx + bw / 2, by + bh / 2 + 1)
+        ctx.textAlign = 'left'
+        badgeRightEdge = bx - 12
+      } else if (premium) {
         const bw = 172, bh = 42, bx = badgeRightEdge - bw, by = 58
         ctx.fillStyle = 'rgba(255,214,102,0.2)'
         roundRect(ctx, bx, by, bw, bh, 21)
@@ -207,7 +220,7 @@ function TrustCard({ name, username, avatarUrl, trustScore, boughtCount, soldCou
     else start()
 
     return () => { cancelled = true }
-  }, [name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, accentFont, bgStart, bgEnd])
+  }, [name, username, avatarUrl, trustScore, boughtCount, soldCount, verified, memberSince, premium, owner, accentFont, bgStart, bgEnd])
 
   const download = () => {
     const canvas = canvasRef.current
